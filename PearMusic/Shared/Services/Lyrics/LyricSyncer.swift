@@ -43,7 +43,9 @@ public final class LyricSyncer: @unchecked Sendable {
 
         stop()
 
-        displayLink = CADisplayLink(target: self, selector: #selector(tick))
+        displayLink = CADisplayLink { [weak self] _ in
+            self?.tick()
+        }
         displayLink?.add(to: .main, forMode: .common)
     }
 
@@ -65,7 +67,7 @@ public final class LyricSyncer: @unchecked Sendable {
 
     // MARK: - Tick
 
-    @objc private func tick() {
+    private func tick() {
         guard let getTime = getPlaybackTime else { return }
         guard !lines.isEmpty else { return }
 
