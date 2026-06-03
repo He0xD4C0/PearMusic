@@ -42,15 +42,10 @@ public struct QueueEntry: Identifiable, Equatable, Sendable {
 
 /// Core playback engine wrapping `ApplicationMusicPlayer.shared`.
 ///
-/// Responsibilities:
-/// - Playback control (play, pause, skip, seek)
-/// - Queue management (view, reorder, insert, remove)
-/// - Shuffle and repeat modes
-/// - Continuous progress tracking via Timer
-/// - System integration: MPNowPlayingInfoCenter, MPRemoteCommandCenter
-///
-/// All public methods are `@MainActor` because `ApplicationMusicPlayer`
-/// is MainActor-isolated.
+/// **Key design decision**: The shadow queue is the sole source of truth for
+/// track identity. The system player only ever receives single-song queues
+/// to avoid the "Queue was interrupted by another queue" error. No inserts
+/// or rebuilds are performed on the system player queue.
 @MainActor
 @Observable
 public final class PlaybackEngine {
@@ -63,8 +58,7 @@ public final class PlaybackEngine {
 
     // MARK: - Shadow Queue
 
-    /// Our managed queue — the source of truth for queue display.
-    /// Mirrors what we've sent to `ApplicationMusicPlayer`.
+    /// Our managed queue — the source of truth.
     private var shadowQueue: [QueueEntry] = []
 
     /// Index into `shadowQueue` of the currently playing song.
@@ -75,6 +69,8 @@ public final class PlaybackEngine {
     public private(set) var isPlaying: Bool = false
     public private(set) var currentTime: TimeInterval = 0
     public private(set) var duration: TimeInterval = 0
+    /// The currently playing song — derived from shadow queue, NOT from
+    /// player.queue.currentEntry (which may be nil after queue conflicts).
     public private(set) var nowPlaying: Song?
     public private(set) var repeatMode: RepeatMode = .none
     public private(set) var shuffleMode: ShuffleMode = .off
@@ -84,22 +80,18 @@ public final class PlaybackEngine {
 
     // MARK: - Queue Access
 
-    /// The full queue, with the current song at index 0 (if playing).
     public var queue: [QueueEntry] { shadowQueue }
 
-    /// Upcoming songs (after the current track).
     public var upcomingQueue: [QueueEntry] {
         guard currentIndex >= 0, currentIndex < shadowQueue.count else { return [] }
         return Array(shadowQueue[(currentIndex + 1)...])
     }
 
-    /// History (songs before the current track).
     public var history: [QueueEntry] {
         guard currentIndex > 0 else { return [] }
         return Array(shadowQueue[0..<currentIndex])
     }
 
-    /// Total count of items in the queue.
     public var queueCount: Int { shadowQueue.count }
 
     // MARK: - Progress Timer
@@ -122,42 +114,44 @@ public final class PlaybackEngine {
 
     /// Plays a single song, replacing the queue.
     public func play(song: Song) async throws {
+        player.stop()
         shadowQueue = [QueueEntry(song: song)]
         currentIndex = 0
+        setNowPlaying(at: 0)
         player.queue = [song]
         try await player.play()
-        refreshNowPlaying()
+        refreshPlaybackState()
         startProgressTimer()
     }
 
     /// Plays an array of songs starting from a specific index.
+    /// Only the starting song is sent to the system player — the rest
+    /// lives in the shadow queue and is played via `skipToNext()`.
     public func play(songs: [Song], startIndex: Int = 0) async throws {
-        guard !songs.isEmpty else {
-            throw PearMusicError.queueEmpty
-        }
+        guard !songs.isEmpty else { return }
         let clampedIndex = min(max(startIndex, 0), songs.count - 1)
+        player.stop()
         shadowQueue = songs.map { QueueEntry(song: $0) }
         currentIndex = clampedIndex
-        player.queue = ApplicationMusicPlayer.Queue(for: songs, startingAt: songs[clampedIndex])
+        setNowPlaying(at: clampedIndex)
+        player.queue = [songs[clampedIndex]]
         try await player.play()
-        refreshNowPlaying()
+        refreshPlaybackState()
         startProgressTimer()
     }
 
     /// Resumes playback of the current queue.
     public func play() async throws {
-        guard !shadowQueue.isEmpty else {
-            throw PearMusicError.noActiveQueue
-        }
+        guard currentIndex >= 0, currentIndex < shadowQueue.count else { return }
         try await player.play()
-        refreshNowPlaying()
+        refreshPlaybackState()
         startProgressTimer()
     }
 
     /// Pauses playback.
     public func pause() {
         player.pause()
-        refreshNowPlaying()
+        refreshPlaybackState()
         stopProgressTimer()
     }
 
@@ -187,7 +181,6 @@ public final class PlaybackEngine {
         let nextIndex = resolveNextIndex()
 
         if nextIndex == -1 {
-            // End of queue, no repeat
             stop()
             return
         }
@@ -195,64 +188,53 @@ public final class PlaybackEngine {
         if nextIndex == currentIndex {
             // Repeat One — seek to beginning
             player.playbackTime = 0
-            refreshNowPlaying()
+            refreshPlaybackState()
             return
         }
 
-        // Play next song
+        // Play next song from shadow queue
         if nextIndex < shadowQueue.count {
-            let nextSong = shadowQueue[nextIndex].song
             currentIndex = nextIndex
-            player.queue = [nextSong]
+            setNowPlaying(at: nextIndex)
+            player.queue = [shadowQueue[nextIndex].song]
             try await player.play()
-            // Rebuild remaining queue for upcoming tracks
-            rebuildUpcomingQueue(from: nextIndex)
         }
-        refreshNowPlaying()
+        refreshPlaybackState()
     }
 
-    /// Skips to the previous track.
-    /// If >3 seconds into the song, restarts the current song.
+    /// Skips to the previous track. Restarts current if >3s in.
     public func skipToPrevious() async throws {
         if currentTime > 3.0 {
-            // Restart current song
             player.playbackTime = 0
-            refreshNowPlaying()
+            refreshPlaybackState()
             return
         }
 
-        // Go to previous song
         let prevIndex = currentIndex - 1
         guard prevIndex >= 0 else {
-            // Already at first song — restart it
             player.playbackTime = 0
-            refreshNowPlaying()
+            refreshPlaybackState()
             return
         }
 
-        let prevSong = shadowQueue[prevIndex].song
         currentIndex = prevIndex
-        player.queue = [prevSong]
+        setNowPlaying(at: prevIndex)
+        player.queue = [shadowQueue[prevIndex].song]
         try await player.play()
-        rebuildUpcomingQueue(from: prevIndex)
-        refreshNowPlaying()
+        refreshPlaybackState()
     }
 
-    /// Seeks to a specific time in the current song.
+    /// Seeks to a position in the current song.
     public func seek(to time: TimeInterval) async {
         player.playbackTime = time
-        refreshNowPlaying()
+        currentTime = time
     }
 
-    // MARK: - Queue Management
+    // MARK: - Queue Management (shadow only — no system player inserts)
 
-    /// Adds a song to the end of the queue.
+    /// Adds a song to the end of the shadow queue.
     public func addToQueue(_ song: Song) {
-        let entry = QueueEntry(song: song)
-        shadowQueue.append(entry)
-        Task { @MainActor in
-            try? await player.queue.insert(song, position: .tail)
-        }
+        shadowQueue.append(QueueEntry(song: song))
     }
 
     /// Inserts a song to play immediately after the current track.
@@ -260,12 +242,6 @@ public final class PlaybackEngine {
         let entry = QueueEntry(song: song)
         let insertIndex = currentIndex + 1
         shadowQueue.insert(entry, at: insertIndex)
-        if insertIndex <= currentIndex {
-            currentIndex += 1
-        }
-        Task { @MainActor in
-            try? await player.queue.insert(song, position: .afterCurrentEntry)
-        }
     }
 
     /// Removes a song from the shadow queue by ID.
@@ -274,11 +250,8 @@ public final class PlaybackEngine {
         if removeIndex < currentIndex {
             currentIndex -= 1
         } else if removeIndex == currentIndex {
-            // Removing the current song — skip to next
             shadowQueue.remove(at: removeIndex)
-            Task {
-                try? await skipToNext()
-            }
+            Task { try? await skipToNext() }
             return
         }
         shadowQueue.remove(at: removeIndex)
@@ -288,18 +261,14 @@ public final class PlaybackEngine {
     public func moveInQueue(from source: IndexSet, to destination: Int) {
         var mutable = shadowQueue
         mutable.move(fromOffsets: source, toOffset: destination)
-
-        // Adjust currentIndex
         let oldIndex = currentIndex
         shadowQueue = mutable
-
-        // Find where the current song moved
-        if let newCurrentIdx = shadowQueue.firstIndex(where: { $0.id == shadowQueue[oldIndex].id }) {
-            currentIndex = newCurrentIdx
+        if oldIndex >= 0, oldIndex < shadowQueue.count {
+            // Find where the current song moved
+            if let newIdx = shadowQueue.firstIndex(where: { $0.id == shadowQueue[min(oldIndex, shadowQueue.count - 1)].id }) {
+                currentIndex = newIdx
+            }
         }
-
-        // Rebuild upcoming portion of the player queue
-        rebuildUpcomingQueue(from: currentIndex)
     }
 
     /// Clears all upcoming songs (keeps current).
@@ -310,7 +279,6 @@ public final class PlaybackEngine {
 
     // MARK: - Repeat & Shuffle
 
-    /// Cycles to the next repeat mode.
     public func cycleRepeatMode() {
         switch repeatMode {
         case .none: repeatMode = .all
@@ -319,64 +287,57 @@ public final class PlaybackEngine {
         }
     }
 
-    /// Toggles shuffle mode.
     public func toggleShuffle() {
         shuffleMode = (shuffleMode == .off) ? .on : .off
-
         if shuffleMode == .on, currentIndex >= 0 {
-            // Keep current song, shuffle the remaining
-            _ = shadowQueue[currentIndex]
             var upcoming = Array(shadowQueue[(currentIndex + 1)...])
             upcoming.shuffle()
             shadowQueue = Array(shadowQueue[0...currentIndex]) + upcoming
-            rebuildUpcomingQueue(from: currentIndex)
-        } else if shuffleMode == .off {
-            // Can't un-shuffle — original order is lost.
-            // In a production app we'd store the original order.
         }
     }
 
     // MARK: - Search
 
-    /// Searches the Apple Music catalog.
     public func search(query: String, limit: Int = 25) async throws -> [Song] {
-        var request = MusicCatalogSearchRequest(
-            term: query,
-            types: [Song.self]
-        )
+        var request = MusicCatalogSearchRequest(term: query, types: [Song.self])
         request.limit = limit
-
         let response = try await request.response()
         return Array(response.songs)
     }
 
-    /// Searches by artist and title.
     public func search(title: String, artist: String, limit: Int = 10) async throws -> [Song] {
         var request = MusicCatalogSearchRequest(
             term: "\(title) \(artist)",
             types: [Song.self]
         )
         request.limit = limit
-
         let response = try await request.response()
         return Array(response.songs)
     }
 
-    // MARK: - State Refresh
+    // MARK: - State Management
 
-    /// Updates all @Observable properties from the live player.
-    private func refreshNowPlaying() {
-        let song = player.queue.currentEntry?.item as? Song
-        if song?.id != nowPlaying?.id {
+    /// Sets `nowPlaying` from the shadow queue (NOT from the system player).
+    private func setNowPlaying(at index: Int) {
+        guard index >= 0, index < shadowQueue.count else { return }
+        let song = shadowQueue[index].song
+        if song.id != nowPlaying?.id {
             nowPlaying = song
+            duration = song.duration ?? 0
             updateNowPlayingInfo()
         }
+    }
+
+    /// Refreshes playback state from the system player.
+    private func refreshPlaybackState() {
         isPlaying = player.state.playbackStatus == .playing
         currentTime = player.playbackTime
-        if let dur = song?.duration {
-            duration = dur
-        }
         errorMessage = nil
+
+        // Sync nowPlaying from shadow queue if it's nil but we have songs
+        if nowPlaying == nil, currentIndex >= 0, currentIndex < shadowQueue.count {
+            setNowPlaying(at: currentIndex)
+        }
     }
 
     // MARK: - Progress Timer
@@ -400,7 +361,7 @@ public final class PlaybackEngine {
         currentTime = player.playbackTime
         isPlaying = true
 
-        // Detect song end and auto-advance
+        // Auto-advance when the song ends
         if duration > 0, currentTime >= duration - 0.5 {
             Task { @MainActor [weak self] in
                 try? await self?.skipToNext()
@@ -408,21 +369,8 @@ public final class PlaybackEngine {
         }
     }
 
-    // MARK: - Upcoming Queue Rebuild
-
-    /// Rebuilds the player's upcoming queue from `fromIndex + 1` onward.
-    private func rebuildUpcomingQueue(from index: Int) {
-        let upcoming = shadowQueue[(index + 1)...]
-        for entry in upcoming {
-            Task { @MainActor in
-                try? await player.queue.insert(entry.song, position: .tail)
-            }
-        }
-    }
-
     // MARK: - Index Resolution
 
-    /// Determines the next index based on repeat mode, shuffle, and bounds.
     private func resolveNextIndex() -> Int {
         switch repeatMode {
         case .none:
@@ -438,11 +386,9 @@ public final class PlaybackEngine {
 
     // MARK: - System Integration
 
-    /// Configures MPNowPlayingInfoCenter and MPRemoteCommandCenter.
     private func setupRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
 
-        // Play
         center.playCommand.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in
                 try? await self?.play()
@@ -450,7 +396,6 @@ public final class PlaybackEngine {
             return .success
         }
 
-        // Pause
         center.pauseCommand.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.pause()
@@ -458,7 +403,6 @@ public final class PlaybackEngine {
             return .success
         }
 
-        // Toggle play/pause
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in
                 try? await self?.togglePlayPause()
@@ -466,7 +410,6 @@ public final class PlaybackEngine {
             return .success
         }
 
-        // Next
         center.nextTrackCommand.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in
                 try? await self?.skipToNext()
@@ -474,7 +417,6 @@ public final class PlaybackEngine {
             return .success
         }
 
-        // Previous
         center.previousTrackCommand.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in
                 try? await self?.skipToPrevious()
@@ -482,7 +424,6 @@ public final class PlaybackEngine {
             return .success
         }
 
-        // Seek
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let self,
                   let event = event as? MPChangePlaybackPositionCommandEvent else {
@@ -495,7 +436,6 @@ public final class PlaybackEngine {
         }
     }
 
-    /// Publishes the current track to MPNowPlayingInfoCenter.
     private func updateNowPlayingInfo() {
         let center = MPNowPlayingInfoCenter.default()
 
@@ -518,11 +458,12 @@ public final class PlaybackEngine {
             info[MPMediaItemPropertyAlbumTitle] = albumTitle
         }
 
-        // Artwork is loaded asynchronously to avoid blocking
-        if let artwork = song.artwork {
+        // Placeholder artwork while we load the real one
+        if song.artwork != nil {
             info[MPMediaItemPropertyArtwork] = placeholderArtwork()
             Task {
-                if let loadedArtwork = await loadArtworkMP(artwork) {
+                if let artwork = song.artwork,
+                   let loadedArtwork = await loadArtworkMP(artwork) {
                     var updated = center.nowPlayingInfo ?? [:]
                     updated[MPMediaItemPropertyArtwork] = loadedArtwork
                     center.nowPlayingInfo = updated
@@ -534,12 +475,10 @@ public final class PlaybackEngine {
         center.playbackState = isPlaying ? .playing : .paused
     }
 
-    /// Clears the NowPlaying info center.
     private func clearNowPlaying() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    /// Generates a small placeholder artwork to avoid NowPlaying widget flicker.
     private func placeholderArtwork() -> MPMediaItemArtwork {
         MPMediaItemArtwork(boundsSize: CGSize(width: 1, height: 1)) { _ in
             #if os(macOS)
@@ -550,15 +489,12 @@ public final class PlaybackEngine {
         }
     }
 
-    /// Loads MusicKit artwork into an MPMediaItemArtwork.
     private func loadArtworkMP(_ artwork: Artwork) async -> MPMediaItemArtwork? {
         let size = CGSize(width: 600, height: 600)
-
         guard let url = artwork.url(width: Int(size.width), height: Int(size.height)),
               let (data, _) = try? await URLSession.shared.data(from: url) else {
             return nil
         }
-
         #if os(macOS)
         guard let nsImage = NSImage(data: data) else { return nil }
         return MPMediaItemArtwork(boundsSize: size) { _ in nsImage }
