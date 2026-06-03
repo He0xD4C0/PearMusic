@@ -1,17 +1,12 @@
 import Foundation
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
 
 // MARK: - Lyric Syncer
 
-/// High-performance lyric-to-playback synchronization using CADisplayLink.
-/// Fires at display refresh rate (60fps on most Macs) with O(log n) binary search.
+/// High-performance lyric-to-playback synchronization.
+/// Uses a high-frequency Timer (~60fps) with O(log n) binary search.
 public final class LyricSyncer: @unchecked Sendable {
 
-    private var displayLink: CADisplayLink?
+    private var timer: Timer?
     private var lines: [LyricLine] = []
     private var currentIndex: Int = -1
     private var getPlaybackTime: (() -> TimeInterval)?
@@ -36,23 +31,25 @@ public final class LyricSyncer: @unchecked Sendable {
         self.currentIndex = -1
     }
 
-    /// Starts the CADisplayLink sync loop.
+    /// Starts the sync loop at ~60fps.
     public func start(getPlaybackTime: @escaping () -> TimeInterval) {
         self.getPlaybackTime = getPlaybackTime
         self.currentIndex = -1
 
         stop()
 
-        displayLink = CADisplayLink { [weak self] _ in
+        timer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / 60.0,
+            repeats: true
+        ) { [weak self] _ in
             self?.tick()
         }
-        displayLink?.add(to: .main, forMode: .common)
     }
 
     /// Stops the sync loop.
     public func stop() {
-        displayLink?.invalidate()
-        displayLink = nil
+        timer?.invalidate()
+        timer = nil
     }
 
     /// Forces a re-sync (e.g., after seeking).
@@ -62,7 +59,7 @@ public final class LyricSyncer: @unchecked Sendable {
 
     /// Returns whether the syncer is running.
     public var isRunning: Bool {
-        displayLink != nil && !(displayLink?.isPaused ?? true)
+        timer?.isValid ?? false
     }
 
     // MARK: - Tick
