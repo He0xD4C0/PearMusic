@@ -6,7 +6,7 @@ import Combine
 /// Orchestrates the full lyric flow: search NetEase → fetch lyrics →
 /// state machine → AI translation → sync to playback.
 @Observable
-public final class LyricViewModel: Sendable {
+public final class LyricViewModel {
 
     // MARK: - State
 

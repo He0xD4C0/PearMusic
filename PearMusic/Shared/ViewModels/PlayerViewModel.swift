@@ -6,7 +6,7 @@ import Combine
 
 /// Manages MusicKit player state and provides controls to SwiftUI views.
 @Observable
-public final class PlayerViewModel: Sendable {
+public final class PlayerViewModel {
 
     public static let shared = PlayerViewModel()
 
