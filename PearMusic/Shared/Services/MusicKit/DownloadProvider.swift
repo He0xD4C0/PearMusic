@@ -146,7 +146,7 @@ public final class DownloadProvider {
     /// In offline mode, only downloaded songs are available.
     public func isAvailable(_ song: Song) -> Bool {
         guard offlineMode else { return true }
-        return status(for: $0) == .downloaded
+        return status(for: song) == .downloaded
     }
 
     /// Clears the download status cache (useful on app restart).
