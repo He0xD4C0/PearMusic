@@ -104,7 +104,7 @@ public final class PlaybackEngine {
 
     // MARK: - Progress Timer
 
-    private var progressTimer: Timer?
+    nonisolated(unsafe) private var progressTimer: Timer?
 
     // MARK: - Initialization
 

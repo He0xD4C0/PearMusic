@@ -82,7 +82,7 @@ public final class PlayerViewModel {
 
     // MARK: - Timer
 
-    private var uiTimer: Timer?
+    nonisolated(unsafe) private var uiTimer: Timer?
 
     // MARK: - Init
 
