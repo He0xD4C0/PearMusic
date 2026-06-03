@@ -6,7 +6,7 @@ import SwiftUI
 /// Manages NetEase and AI credential configuration.
 /// Credentials are stored securely in Keychain.
 @Observable
-public final class SetupViewModel: Sendable {
+public final class SetupViewModel {
 
     // MARK: - Published State
 
