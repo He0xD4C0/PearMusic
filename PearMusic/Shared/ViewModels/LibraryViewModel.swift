@@ -3,8 +3,7 @@ import MusicKit
 
 // MARK: - Library View Model
 
-/// Manages library state for SwiftUI views: playlists, songs,
-/// recently played, and recommendations.
+/// Manages library state for SwiftUI views: playlists and songs.
 @MainActor
 @Observable
 public final class LibraryViewModel {
@@ -20,17 +19,12 @@ public final class LibraryViewModel {
     // MARK: - State
 
     public var playlists: [Playlist] { library.playlists }
-    public var recentlyPlayedAlbums: [Album] { library.recentlyPlayedAlbums }
-    public var recentlyPlayedPlaylists: [Playlist] { library.recentlyPlayedPlaylists }
-    public var recommendations: [MusicPersonalRecommendation] { library.recommendations }
     public var librarySongs: [Song] {
         downloads.filterDownloaded(library.librarySongs)
     }
 
     public var isLoading: Bool {
-        library.isLoadingPlaylists
-        || library.isLoadingRecentlyPlayed
-        || library.isLoadingSongs
+        library.isLoadingPlaylists || library.isLoadingSongs
     }
 
     public var errorMessage: String? { library.errorMessage }
@@ -50,14 +44,6 @@ public final class LibraryViewModel {
 
     public func fetchPlaylists() async throws {
         try await library.fetchPlaylists()
-    }
-
-    public func fetchRecentlyPlayed() async throws {
-        try await library.fetchRecentlyPlayed()
-    }
-
-    public func fetchRecommendations() async throws {
-        _ = try await library.fetchRecommendations()
     }
 
     public func fetchLibrarySongs() async throws {

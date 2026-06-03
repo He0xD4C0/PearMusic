@@ -97,7 +97,9 @@ public final class DownloadProvider {
 
         do {
             // Add to library — system handles the actual download
+            #if os(iOS)
             try await MusicLibrary.shared.add(song)
+            #endif
 
             // Mark as downloaded (the system manages the actual download)
             downloadStatusCache[songId] = .downloaded
