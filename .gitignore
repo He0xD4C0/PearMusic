@@ -1,0 +1,39 @@
+# Xcode
+*.xcworkspace
+*.xcuserdata
+DerivedData/
+Build/
+*.xcodeproj/xcuserdata
+*.xcodeproj/project.xcworkspace/xcuserdata
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Dependencies
+Pods/
+Carthage/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+*.env
+*.xcconfig.local
+
+# Debug artifacts
+debug-screenshot-*.png
+
+# Agent Files
+.claude
+

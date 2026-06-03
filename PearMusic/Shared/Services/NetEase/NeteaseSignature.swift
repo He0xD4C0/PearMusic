@@ -1,12 +1,17 @@
 import Foundation
+import Security
 import CryptoKit
 
 // MARK: - RSA SHA256 Signature
 
-/// Implements the NetEase API RSA-SHA256 signing algorithm using CryptoKit.
+/// Implements the NetEase API RSA-SHA256 signing algorithm using Security framework.
 ///
 /// Algorithm: RSA PKCS#1 v1.5 with SHA-256 (same as Java's "SHA256WithRSA").
 /// Key format: PKCS#8 DER (private), X.509 DER (public), base64-encoded, no PEM headers.
+///
+/// Uses `SecKeyCreateSignature` with `.rsaSignatureDigestPKCS1v15SHA256` —
+/// this is the standard Apple API for RSA-SHA256 and doesn't require the
+/// unavailable `RSA` type from CryptoKit.
 public enum NeteaseSignature {
 
     // MARK: - Errors
@@ -35,48 +40,27 @@ public enum NeteaseSignature {
         content: String,
         privateKeyBase64: String
     ) throws -> String {
-        // 1. Decode base64 key
-        guard let keyData = Data(base64Encoded: stripWhitespace(privateKeyBase64)) else {
-            throw SignError.invalidKey
-        }
+        // 1. Decode and import the private key
+        let privateKey = try importPrivateKey(base64: privateKeyBase64)
 
-        // 2. Import as RSA private key
-        let privateKey: RSA.Signing.PrivateKey
-        do {
-            privateKey = try RSA.Signing.PrivateKey(derRepresentation: keyData)
-        } catch {
-            // Try wrapping in PEM format and re-importing
-            let pemKey = wrapInPEM(keyBase64: privateKeyBase64, keyType: "PRIVATE")
-            guard let pemData = pemKey.data(using: .utf8),
-                  let importedKey = try? RSA.Signing.PrivateKey(pemRepresentation: pemData) else {
-                throw SignError.importFailed(error.localizedDescription)
-            }
-            privateKey = importedKey
-        }
-
-        // 3. Sign with SHA-256 (PKCS#1 v1.5 padding)
+        // 2. Hash content with SHA-256
         let contentData = Data(content.utf8)
-        let signature: RSA.Signing.RSASignature
-        do {
-            signature = try privateKey.sign(
-                .SHA256,
-                data: contentData,
-                padding: .PKCS1
-            )
-        } catch {
-            throw SignError.signingFailed(error.localizedDescription)
+        let digest = SHA256.hash(data: contentData)
+
+        // 3. Sign the digest with RSA PKCS#1 v1.5 SHA-256
+        var error: Unmanaged<CFError>?
+        guard let signatureData = SecKeyCreateSignature(
+            privateKey,
+            .rsaSignatureDigestPKCS1v15SHA256,
+            Data(digest) as CFData,
+            &error
+        ) else {
+            let msg = error?.takeRetainedValue().localizedDescription ?? "Unknown error"
+            throw SignError.signingFailed(msg)
         }
 
-        // 4. Return base64 signature
-        return signature.rawRepresentation.base64EncodedString()
-    }
-
-    /// Signs content using the async-friendly wrapper (same implementation).
-    public static func signAsync(
-        content: String,
-        privateKeyBase64: String
-    ) async throws -> String {
-        try sign(content: content, privateKeyBase64: privateKeyBase64)
+        // 4. Return base64-encoded signature
+        return (signatureData as Data).base64EncodedString()
     }
 
     // MARK: - Verify
@@ -87,26 +71,103 @@ public enum NeteaseSignature {
         signatureBase64: String,
         publicKeyBase64: String
     ) throws -> Bool {
-        guard let keyData = Data(base64Encoded: stripWhitespace(publicKeyBase64)),
+        guard let publicKey = try? importPublicKey(base64: publicKeyBase64),
               let sigData = Data(base64Encoded: signatureBase64) else {
             return false
         }
 
-        let publicKey: RSA.Signing.PublicKey
-        do {
-            publicKey = try RSA.Signing.PublicKey(derRepresentation: keyData)
-        } catch {
-            let pemKey = wrapInPEM(keyBase64: publicKeyBase64, keyType: "PUBLIC")
-            guard let pemData = pemKey.data(using: .utf8),
-                  let importedKey = try? RSA.Signing.PublicKey(pemRepresentation: pemData) else {
-                return false
-            }
-            publicKey = importedKey
+        let contentData = Data(content.utf8)
+        let digest = SHA256.hash(data: contentData)
+
+        var error: Unmanaged<CFError>?
+        let result = SecKeyVerifySignature(
+            publicKey,
+            .rsaSignatureDigestPKCS1v15SHA256,
+            Data(digest) as CFData,
+            sigData as CFData,
+            &error
+        )
+
+        return result
+    }
+
+    // MARK: - Key Import
+
+    private static func importPrivateKey(base64: String) throws -> SecKey {
+        let clean = stripWhitespace(base64)
+        guard let keyData = Data(base64Encoded: clean) else {
+            throw SignError.invalidKey
         }
 
-        let contentData = Data(content.utf8)
-        let signature = RSA.Signing.RSASignature(rawRepresentation: sigData)
-        return publicKey.isValidSignature(signature, for: .SHA256, data: contentData, padding: .PKCS1)
+        // Try PKCS#8 DER import first
+        if let key = createPrivateKey(from: keyData) {
+            return key
+        }
+
+        // Try wrapping in PEM and importing
+        let pemKey = wrapInPEM(keyBase64: base64, keyType: "PRIVATE")
+        guard pemKey.data(using: .utf8) != nil else {
+            throw SignError.importFailed("Cannot convert PEM to data")
+        }
+
+        // Strip PEM headers to get raw DER
+        let strippedPEM = pemKey
+            .replacingOccurrences(of: "-----BEGIN PRIVATE KEY-----", with: "")
+            .replacingOccurrences(of: "-----END PRIVATE KEY-----", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: " ", with: "")
+
+        guard let strippedData = Data(base64Encoded: strippedPEM),
+              let key = createPrivateKey(from: strippedData) else {
+            throw SignError.importFailed("Cannot create SecKey from provided key data")
+        }
+
+        return key
+    }
+
+    private static func importPublicKey(base64: String) throws -> SecKey {
+        let clean = stripWhitespace(base64)
+        guard let keyData = Data(base64Encoded: clean) else {
+            throw SignError.invalidKey
+        }
+
+        if let key = createPublicKey(from: keyData) {
+            return key
+        }
+
+        let pemKey = wrapInPEM(keyBase64: base64, keyType: "PUBLIC")
+        let strippedPEM = pemKey
+            .replacingOccurrences(of: "-----BEGIN PUBLIC KEY-----", with: "")
+            .replacingOccurrences(of: "-----END PUBLIC KEY-----", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: " ", with: "")
+
+        guard let strippedData = Data(base64Encoded: strippedPEM),
+              let key = createPublicKey(from: strippedData) else {
+            throw SignError.importFailed("Cannot create SecKey from provided key data")
+        }
+
+        return key
+    }
+
+    private static func createPrivateKey(from derData: Data) -> SecKey? {
+        let attributes: [String: Any] = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
+            kSecAttrKeySizeInBits as String: 2048,
+        ]
+        return SecKeyCreateWithData(derData as CFData, attributes as CFDictionary, nil)
+    }
+
+    private static func createPublicKey(from derData: Data) -> SecKey? {
+        let attributes: [String: Any] = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+            kSecAttrKeyClass as String: kSecAttrKeyClassPublic,
+            kSecAttrKeySizeInBits as String: 2048,
+        ]
+        return SecKeyCreateWithData(derData as CFData, attributes as CFDictionary, nil)
     }
 
     // MARK: - Sign Content Builder
@@ -138,22 +199,27 @@ public enum NeteaseSignature {
     // MARK: - PEM Helpers
 
     private static func wrapInPEM(keyBase64: String, keyType: String) -> String {
-        let clean = keyBase64.replacingOccurrences(of: "\n", with: "")
+        let clean = keyBase64
+            .replacingOccurrences(of: "\n", with: "")
             .replacingOccurrences(of: "\r", with: "")
             .replacingOccurrences(of: " ", with: "")
 
         var result = "-----BEGIN \(keyType) KEY-----\n"
-        for i in stride(from: 0, to: clean.count, by: 64) {
-            let end = min(i + 64, clean.count)
-            let startIdx = clean.index(clean.startIndex, offsetBy: i)
-            let endIdx = clean.index(clean.startIndex, offsetBy: end)
-            result += clean[startIdx..<endIdx] + "\n"
+        var i = clean.startIndex
+        while i < clean.endIndex {
+            let end = clean.index(i, offsetBy: 64, limitedBy: clean.endIndex) ?? clean.endIndex
+            result += clean[i..<end] + "\n"
+            i = end
         }
         result += "-----END \(keyType) KEY-----"
         return result
     }
 
     private static func stripWhitespace(_ s: String) -> String {
-        s.replacingOccurrences(of: "\\s", with: "", options: .regularExpression)
+        s.replacingOccurrences(
+            of: "[\\s]",
+            with: "",
+            options: .regularExpression
+        )
     }
 }
