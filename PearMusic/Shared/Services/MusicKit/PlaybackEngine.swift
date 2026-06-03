@@ -104,7 +104,7 @@ public final class PlaybackEngine {
 
     // MARK: - Progress Timer
 
-    nonisolated private var progressTimer: Timer?
+    private var progressTimer: Timer?
 
     // MARK: - Initialization
 
@@ -113,7 +113,9 @@ public final class PlaybackEngine {
     }
 
     deinit {
-        progressTimer?.invalidate()
+        MainActor.assumeIsolated {
+            progressTimer?.invalidate()
+        }
     }
 
     // MARK: - Playback Controls
@@ -551,9 +553,9 @@ public final class PlaybackEngine {
     /// Loads MusicKit artwork into an MPMediaItemArtwork.
     private func loadArtworkMP(_ artwork: Artwork) async -> MPMediaItemArtwork? {
         let size = CGSize(width: 600, height: 600)
-        let url = artwork.url(width: Int(size.width), height: Int(size.height))
 
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else {
+        guard let url = artwork.url(width: Int(size.width), height: Int(size.height)),
+              let (data, _) = try? await URLSession.shared.data(from: url) else {
             return nil
         }
 
