@@ -17,7 +17,6 @@ struct PearMusicApp: App {
     #if os(macOS)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unifiedCompact)
-        .defaultSize(width: 900, height: 700)
     #endif
     }
 }
