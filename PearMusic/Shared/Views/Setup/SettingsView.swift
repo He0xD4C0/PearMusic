@@ -164,7 +164,7 @@ struct SettingsView: View {
 
     private struct FieldRow<Content: View>: View {
         let label: String
-        let prompt: String
+        var prompt: String = ""
         @ViewBuilder let content: () -> Content
 
         var body: some View {
