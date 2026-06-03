@@ -104,7 +104,7 @@ public final class LyricViewModel {
             if machine.shouldSync, let lines = machine.lines {
                 syncer.setLines(lines)
                 syncer.start {
-                    PlaybackEngine.shared.currentPlaybackTime
+                    PlaybackEngine.shared.currentTime
                 }
             }
         } catch {
