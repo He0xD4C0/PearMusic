@@ -20,8 +20,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView()
-                .environment(setupVM)
+            SettingsView(viewModel: setupVM)
         }
         .task {
             playerVM.checkAuthorization()
