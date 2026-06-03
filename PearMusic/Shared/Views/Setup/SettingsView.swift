@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var selectedTab = "netease"
 
     var body: some View {
+        @Bindable var vm = setupVM
+
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -34,9 +36,9 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if selectedTab == "netease" {
-                        neteaseSection
+                        neteaseSection(vm)
                     } else {
-                        aiSection
+                        aiSection(vm)
                     }
                 }
                 .padding()
@@ -47,7 +49,7 @@ struct SettingsView: View {
 
     // MARK: - NetEase Section
 
-    private var neteaseSection: some View {
+    private func neteaseSection(_ vm: Bindable<SetupViewModel>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("NetEase Cloud Music API")
                 .font(.headline)
@@ -56,11 +58,11 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            labeledField("App ID", text: $setupVM.neteaseAppId, prompt: "Your NetEase appId")
-            labeledSecureField("App Secret", text: $setupVM.neteaseAppSecret, prompt: "Your app secret")
+            labeledField("App ID", text: $vm.neteaseAppId, prompt: "Your NetEase appId")
+            labeledSecureField("App Secret", text: $vm.neteaseAppSecret, prompt: "Your app secret")
 
             LabeledContent("RSA Private Key (PKCS#8, base64)") {
-                TextEditor(text: $setupVM.neteasePrivateKey)
+                TextEditor(text: $vm.neteasePrivateKey)
                     .font(.system(size: 11, design: .monospaced))
                     .frame(height: 80)
                     .scrollContentBackground(.hidden)
@@ -70,7 +72,7 @@ struct SettingsView: View {
             }
 
             LabeledContent("RSA Public Key (X.509, base64)") {
-                TextEditor(text: $setupVM.neteasePublicKey)
+                TextEditor(text: $vm.neteasePublicKey)
                     .font(.system(size: 11, design: .monospaced))
                     .frame(height: 60)
                     .scrollContentBackground(.hidden)
@@ -85,14 +87,14 @@ struct SettingsView: View {
 
             HStack {
                 Spacer()
-                saveButton
+                saveButton(for: vm.wrappedValue)
             }
         }
     }
 
     // MARK: - AI Section
 
-    private var aiSection: some View {
+    private func aiSection(_ vm: Bindable<SetupViewModel>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("AI Translation")
                 .font(.headline)
@@ -101,43 +103,43 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            labeledSecureField("API Key", text: $setupVM.aiApiKey, prompt: "sk-...")
-            labeledField("Model", text: $setupVM.aiModel, prompt: "deepseek-chat")
-            labeledField("Base URL", text: $setupVM.aiBaseURL, prompt: "https://api.deepseek.com/v1")
+            labeledSecureField("API Key", text: $vm.aiApiKey, prompt: "sk-...")
+            labeledField("Model", text: $vm.aiModel, prompt: "deepseek-chat")
+            labeledField("Base URL", text: $vm.aiBaseURL, prompt: "https://api.deepseek.com/v1")
 
             Text("Works with any OpenAI-compatible API: DeepSeek, OpenAI, Groq, etc.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
             HStack {
-                if setupVM.isAIConfigured {
+                if vm.wrappedValue.isAIConfigured {
                     Label("Connected", systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
                 Spacer()
-                saveButton
+                saveButton(for: vm.wrappedValue)
             }
         }
     }
 
     // MARK: - Save Button
 
-    private var saveButton: some View {
+    private func saveButton(for vm: SetupViewModel) -> some View {
         Button {
-            setupVM.saveToKeychain()
+            vm.saveToKeychain()
         } label: {
-            if setupVM.isSaving {
+            if vm.isSaving {
                 ProgressView()
                     .controlSize(.small)
-            } else if setupVM.saveSuccess {
+            } else if vm.saveSuccess {
                 Label("Saved", systemImage: "checkmark")
             } else {
                 Text("Save")
             }
         }
         .buttonStyle(.borderedProminent)
-        .disabled(setupVM.isSaving)
+        .disabled(vm.isSaving)
     }
 
     // MARK: - Field Helpers
