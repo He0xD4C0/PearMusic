@@ -70,7 +70,7 @@ struct SettingsView: View {
                     .frame(height: 80)
                     .scrollContentBackground(.hidden)
                     .padding(4)
-                    .background(.quaternary)
+                    .background(Color.secondary.opacity(0.15))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
@@ -80,13 +80,13 @@ struct SettingsView: View {
                     .frame(height: 60)
                     .scrollContentBackground(.hidden)
                     .padding(4)
-                    .background(.quaternary)
+                    .background(Color.secondary.opacity(0.15))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
             Text("Generate 2048-bit PKCS#8 keys at web.chacuo.net/netrsakeypair")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.secondary)
 
             HStack {
                 Spacer()
@@ -121,7 +121,7 @@ struct SettingsView: View {
 
             Text("Works with any OpenAI-compatible API: DeepSeek, OpenAI, Groq, etc.")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.secondary)
 
             HStack {
                 if viewModel.isAIConfigured {
