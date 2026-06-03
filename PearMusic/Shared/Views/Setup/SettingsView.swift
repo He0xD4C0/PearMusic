@@ -2,14 +2,11 @@ import SwiftUI
 
 /// Settings sheet for configuring NetEase API keys and AI translation keys.
 struct SettingsView: View {
-    @Environment(SetupViewModel.self) private var setupVM
+    let viewModel: SetupViewModel
     @Environment(\.dismiss) private var dismiss
-
     @State private var selectedTab = "netease"
 
     var body: some View {
-        @Bindable var vm = setupVM
-
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -36,9 +33,9 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if selectedTab == "netease" {
-                        neteaseSection(vm)
+                        neteaseTab
                     } else {
-                        aiSection(vm)
+                        aiTab
                     }
                 }
                 .padding()
@@ -47,9 +44,9 @@ struct SettingsView: View {
         .frame(minWidth: 420, minHeight: 400)
     }
 
-    // MARK: - NetEase Section
+    // MARK: - NetEase Tab
 
-    private func neteaseSection(_ vm: Bindable<SetupViewModel>) -> some View {
+    private var neteaseTab: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("NetEase Cloud Music API")
                 .font(.headline)
@@ -58,11 +55,17 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            labeledField("App ID", text: $vm.neteaseAppId, prompt: "Your NetEase appId")
-            labeledSecureField("App Secret", text: $vm.neteaseAppSecret, prompt: "Your app secret")
+            FieldRow(label: "App ID", prompt: "Your NetEase appId") {
+                TextField("Your NetEase appId", text: binding(\.neteaseAppId))
+                    .textFieldStyle(.roundedBorder)
+            }
+            FieldRow(label: "App Secret", prompt: "Your app secret") {
+                SecureField("Your app secret", text: binding(\.neteaseAppSecret))
+                    .textFieldStyle(.roundedBorder)
+            }
 
-            LabeledContent("RSA Private Key (PKCS#8, base64)") {
-                TextEditor(text: $vm.neteasePrivateKey)
+            FieldRow(label: "RSA Private Key (PKCS#8, base64)") {
+                TextEditor(text: binding(\.neteasePrivateKey))
                     .font(.system(size: 11, design: .monospaced))
                     .frame(height: 80)
                     .scrollContentBackground(.hidden)
@@ -71,8 +74,8 @@ struct SettingsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
-            LabeledContent("RSA Public Key (X.509, base64)") {
-                TextEditor(text: $vm.neteasePublicKey)
+            FieldRow(label: "RSA Public Key (X.509, base64)") {
+                TextEditor(text: binding(\.neteasePublicKey))
                     .font(.system(size: 11, design: .monospaced))
                     .frame(height: 60)
                     .scrollContentBackground(.hidden)
@@ -87,14 +90,14 @@ struct SettingsView: View {
 
             HStack {
                 Spacer()
-                saveButton(for: vm.wrappedValue)
+                saveButton
             }
         }
     }
 
-    // MARK: - AI Section
+    // MARK: - AI Tab
 
-    private func aiSection(_ vm: Bindable<SetupViewModel>) -> some View {
+    private var aiTab: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("AI Translation")
                 .font(.headline)
@@ -103,72 +106,76 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            labeledSecureField("API Key", text: $vm.aiApiKey, prompt: "sk-...")
-            labeledField("Model", text: $vm.aiModel, prompt: "deepseek-chat")
-            labeledField("Base URL", text: $vm.aiBaseURL, prompt: "https://api.deepseek.com/v1")
+            FieldRow(label: "API Key", prompt: "sk-...") {
+                SecureField("sk-...", text: binding(\.aiApiKey))
+                    .textFieldStyle(.roundedBorder)
+            }
+            FieldRow(label: "Model", prompt: "deepseek-chat") {
+                TextField("deepseek-chat", text: binding(\.aiModel))
+                    .textFieldStyle(.roundedBorder)
+            }
+            FieldRow(label: "Base URL", prompt: "https://api.deepseek.com/v1") {
+                TextField("https://api.deepseek.com/v1", text: binding(\.aiBaseURL))
+                    .textFieldStyle(.roundedBorder)
+            }
 
             Text("Works with any OpenAI-compatible API: DeepSeek, OpenAI, Groq, etc.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
             HStack {
-                if vm.wrappedValue.isAIConfigured {
+                if viewModel.isAIConfigured {
                     Label("Connected", systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
                 Spacer()
-                saveButton(for: vm.wrappedValue)
+                saveButton
             }
         }
     }
 
     // MARK: - Save Button
 
-    private func saveButton(for vm: SetupViewModel) -> some View {
+    private var saveButton: some View {
         Button {
-            vm.saveToKeychain()
+            viewModel.saveToKeychain()
         } label: {
-            if vm.isSaving {
-                ProgressView()
-                    .controlSize(.small)
-            } else if vm.saveSuccess {
+            if viewModel.isSaving {
+                ProgressView().controlSize(.small)
+            } else if viewModel.saveSuccess {
                 Label("Saved", systemImage: "checkmark")
             } else {
                 Text("Save")
             }
         }
         .buttonStyle(.borderedProminent)
-        .disabled(vm.isSaving)
+        .disabled(viewModel.isSaving)
     }
 
-    // MARK: - Field Helpers
+    // MARK: - Helpers
 
-    private func labeledField(
-        _ label: String,
-        text: Binding<String>,
-        prompt: String
-    ) -> some View {
-        LabeledContent(label) {
-            TextField(prompt, text: text)
-                .textFieldStyle(.roundedBorder)
-        }
+    private func binding<T>(_ keyPath: ReferenceWritableKeyPath<SetupViewModel, T>) -> Binding<T> {
+        Binding(
+            get: { viewModel[keyPath: keyPath] },
+            set: { viewModel[keyPath: keyPath] = $0 }
+        )
     }
 
-    private func labeledSecureField(
-        _ label: String,
-        text: Binding<String>,
-        prompt: String
-    ) -> some View {
-        LabeledContent(label) {
-            SecureField(prompt, text: text)
-                .textFieldStyle(.roundedBorder)
+    private struct FieldRow<Content: View>: View {
+        let label: String
+        let prompt: String
+        @ViewBuilder let content: () -> Content
+
+        var body: some View {
+            LabeledContent(label) {
+                content()
+            }
         }
     }
 }
 
 #Preview {
-    SettingsView()
-        .environment(SetupViewModel())
+    SettingsView(viewModel: SetupViewModel())
         .preferredColorScheme(.dark)
 }
