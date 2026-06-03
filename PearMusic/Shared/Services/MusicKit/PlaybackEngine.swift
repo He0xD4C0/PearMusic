@@ -104,7 +104,7 @@ public final class PlaybackEngine {
 
     // MARK: - Progress Timer
 
-    nonisolated(unsafe) private var progressTimer: Timer?
+    nonisolated private var progressTimer: Timer?
 
     // MARK: - Initialization
 
@@ -248,7 +248,9 @@ public final class PlaybackEngine {
     public func addToQueue(_ song: Song) {
         let entry = QueueEntry(song: song)
         shadowQueue.append(entry)
-        player.queue.insert(song, position: .tail)
+        Task { @MainActor in
+            try? await player.queue.insert(song, position: .tail)
+        }
     }
 
     /// Inserts a song to play immediately after the current track.
@@ -256,11 +258,12 @@ public final class PlaybackEngine {
         let entry = QueueEntry(song: song)
         let insertIndex = currentIndex + 1
         shadowQueue.insert(entry, at: insertIndex)
-        // Adjust currentIndex if we inserted before it (shouldn't happen for playNext)
         if insertIndex <= currentIndex {
             currentIndex += 1
         }
-        player.queue.insert(song, position: .afterCurrentEntry)
+        Task { @MainActor in
+            try? await player.queue.insert(song, position: .afterCurrentEntry)
+        }
     }
 
     /// Removes a song from the shadow queue by ID.
@@ -320,7 +323,7 @@ public final class PlaybackEngine {
 
         if shuffleMode == .on, currentIndex >= 0 {
             // Keep current song, shuffle the remaining
-            let current = shadowQueue[currentIndex]
+            _ = shadowQueue[currentIndex]
             var upcoming = Array(shadowQueue[(currentIndex + 1)...])
             upcoming.shuffle()
             shadowQueue = Array(shadowQueue[0...currentIndex]) + upcoming
@@ -409,7 +412,9 @@ public final class PlaybackEngine {
     private func rebuildUpcomingQueue(from index: Int) {
         let upcoming = shadowQueue[(index + 1)...]
         for entry in upcoming {
-            player.queue.insert(entry.song, position: .tail)
+            Task { @MainActor in
+                try? await player.queue.insert(entry.song, position: .tail)
+            }
         }
     }
 
@@ -546,17 +551,17 @@ public final class PlaybackEngine {
     /// Loads MusicKit artwork into an MPMediaItemArtwork.
     private func loadArtworkMP(_ artwork: Artwork) async -> MPMediaItemArtwork? {
         let size = CGSize(width: 600, height: 600)
-        #if os(macOS)
-        guard let data = try? await artwork.data(width: Int(size.width), height: Int(size.height)),
-              let nsImage = NSImage(data: data) else {
+        let url = artwork.url(width: Int(size.width), height: Int(size.height))
+
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else {
             return nil
         }
+
+        #if os(macOS)
+        guard let nsImage = NSImage(data: data) else { return nil }
         return MPMediaItemArtwork(boundsSize: size) { _ in nsImage }
         #else
-        guard let data = try? await artwork.data(width: Int(size.width), height: Int(size.height)),
-              let uiImage = UIImage(data: data) else {
-            return nil
-        }
+        guard let uiImage = UIImage(data: data) else { return nil }
         return MPMediaItemArtwork(boundsSize: size) { _ in uiImage }
         #endif
     }
