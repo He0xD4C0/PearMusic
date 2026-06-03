@@ -1,117 +1,256 @@
 import Foundation
 import MusicKit
-import Combine
+import Observation
 
 // MARK: - Player View Model
 
-/// Manages MusicKit player state and provides controls to SwiftUI views.
+/// Primary player state bridge between `PlaybackEngine` / `MusicAuthManager`
+/// and SwiftUI views.
+///
+/// Uses **stored properties** refreshed by a 4 Hz timer because `@Observable`
+/// only tracks stored property mutations — computed properties that delegate
+/// across object boundaries do not trigger SwiftUI re-renders.
+///
+/// Basic transport controls (play, pause, skip) catch errors internally and
+/// set `errorMessage` for the UI — callers don't need `try`. Throwing variants
+/// are available for programmatic use.
+@MainActor
 @Observable
 public final class PlayerViewModel {
 
     public static let shared = PlayerViewModel()
 
-    private let playerManager = MusicPlayerManager.shared
-    private let statePublisher = PlayerStatePublisher.shared
+    // MARK: - Dependencies
 
-    // MARK: - State
+    private let auth = MusicAuthManager.shared
+    private let engine = PlaybackEngine.shared
 
-    public var authorizationStatus: MusicAuthorization.Status = .notDetermined
-    public var isPlaying: Bool = false
-    public var currentTime: TimeInterval = 0
-    public var duration: TimeInterval = 0
+    // MARK: - Auth State (stored + refreshed)
 
-    public var nowPlayingTitle: String?
-    public var nowPlayingArtist: String?
-    public var nowPlayingAlbum: String?
-    public var nowPlayingArtworkURL: URL?
+    public private(set) var authorizationStatus: MusicAuthorization.Status = .notDetermined
+    public var isAuthorized: Bool { authorizationStatus == .authorized }
 
-    public var errorMessage: String?
+    // MARK: - Playback State (stored + refreshed by timer)
 
-    // MARK: - Authorization
+    public private(set) var isPlaying: Bool = false
+    public private(set) var currentTime: TimeInterval = 0
+    public private(set) var duration: TimeInterval = 0
+    public private(set) var nowPlayingTitle: String?
+    public private(set) var nowPlayingArtist: String?
+    public private(set) var nowPlayingAlbum: String?
+    public private(set) var nowPlayingArtworkURL: URL?
+    public private(set) var errorMessage: String?
 
-    /// Returns whether MusicKit has been authorized.
-    public var isAuthorized: Bool {
-        authorizationStatus == .authorized
-    }
+    // MARK: - Modes (stored + refreshed)
 
-    /// Requests authorization from the user.
-    public func authorize() async {
-        authorizationStatus = await playerManager.requestAuthorization()
-        refreshState()
-    }
+    public private(set) var repeatMode: RepeatMode = .none
+    public private(set) var shuffleMode: ShuffleMode = .off
 
-    /// Checks authorization without prompting.
-    public func checkAuthorization() {
-        authorizationStatus = playerManager.checkAuthorization()
-        refreshState()
-    }
+    // MARK: - Queue (computed — rarely changes, updated on actions)
 
-    // MARK: - Playback Controls
+    public var queue: [QueueEntry] { engine.queue }
+    public var queueCount: Int { engine.queueCount }
+    public var upcomingQueue: [QueueEntry] { engine.upcomingQueue }
+    public var history: [QueueEntry] { engine.history }
 
-    public func play() async {
-        do {
-            try await playerManager.play()
-            refreshState()
-        } catch {
-            errorMessage = error.localizedDescription
+    // MARK: - Auth Status Messages
+
+    public var authStatusMessage: String {
+        switch authorizationStatus {
+        case .notDetermined:
+            return "Apple Music access is required to play songs and display synced lyrics."
+        case .authorized:
+            return "Apple Music authorized."
+        case .denied:
+            return "Apple Music access was denied. Enable it in System Settings → Privacy → Media & Apple Music."
+        case .restricted:
+            return "Apple Music access is restricted on this device. Check Screen Time or device management settings."
+        @unknown default:
+            return "Unknown authorization state."
         }
     }
 
+    public var authStatusSymbol: String {
+        switch authorizationStatus {
+        case .notDetermined: return "music.note"
+        case .authorized:    return "music.note.house.fill"
+        case .denied:        return "music.note.slash"
+        case .restricted:    return "lock.shield"
+        @unknown default:    return "questionmark"
+        }
+    }
+
+    // MARK: - Timer
+
+    private var uiTimer: Timer?
+
+    // MARK: - Init
+
+    private init() {
+        refreshAuthState()
+        refreshPlaybackState()
+        startUITimer()
+    }
+
+    deinit {
+        uiTimer?.invalidate()
+    }
+
+    // MARK: - Authorization
+
+    public func authorize() async {
+        _ = await auth.requestAuthorization()
+        refreshAuthState()
+    }
+
+    public func checkAuthorization() {
+        refreshAuthState()
+    }
+
+    public func openSystemSettings() {
+        auth.openSystemSettings()
+    }
+
+    // MARK: - Playback Controls (error-catching for UI)
+
+    public func play() async {
+        do {
+            try await engine.play()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        refreshPlaybackState()
+    }
+
     public func pause() {
-        playerManager.pause()
-        refreshState()
+        engine.pause()
+        refreshPlaybackState()
+    }
+
+    public func togglePlayPause() async {
+        do {
+            try await engine.togglePlayPause()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        refreshPlaybackState()
     }
 
     public func skipToNext() async {
         do {
-            try await playerManager.skipToNext()
-            refreshState()
+            try await engine.skipToNext()
         } catch {
             errorMessage = error.localizedDescription
         }
+        refreshPlaybackState()
     }
 
     public func skipToPrevious() async {
         do {
-            try await playerManager.skipToPrevious()
-            refreshState()
+            try await engine.skipToPrevious()
         } catch {
             errorMessage = error.localizedDescription
         }
+        refreshPlaybackState()
     }
 
     public func seek(to time: TimeInterval) async {
-        await playerManager.seek(to: time)
+        await engine.seek(to: time)
+        refreshPlaybackState()
     }
 
-    // MARK: - Play Song
+    // MARK: - Play Song (error-catching for UI)
 
-    /// Searches Apple Music and plays the first matching song.
+    public func play(song: Song) async {
+        do {
+            try await engine.play(song: song)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        refreshPlaybackState()
+    }
+
+    public func play(songs: [Song], startIndex: Int = 0) async {
+        do {
+            try await engine.play(songs: songs, startIndex: startIndex)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        refreshPlaybackState()
+    }
+
     public func searchAndPlay(title: String, artist: String) async {
         do {
-            let songs = try await playerManager.search(title: title, artist: artist)
+            let songs = try await engine.search(title: title, artist: artist)
             guard let firstSong = songs.first else {
                 errorMessage = "No results found for \"\(title)\""
                 return
             }
-            try await playerManager.play(song: firstSong)
-            refreshState()
+            try await engine.play(song: firstSong)
         } catch {
             errorMessage = error.localizedDescription
         }
+        refreshPlaybackState()
+    }
+
+    // MARK: - Search
+
+    public func search(query: String, limit: Int = 25) async throws -> [Song] {
+        try await engine.search(query: query, limit: limit)
+    }
+
+    // MARK: - Queue Management
+
+    public func addToQueue(_ song: Song) { engine.addToQueue(song) }
+    public func playNext(_ song: Song) { engine.playNext(song) }
+    public func removeFromQueue(id: String) { engine.removeFromQueue(id: id) }
+    public func moveInQueue(from source: IndexSet, to destination: Int) { engine.moveInQueue(from: source, to: destination) }
+    public func clearUpcomingQueue() { engine.clearUpcoming() }
+
+    // MARK: - Repeat / Shuffle
+
+    public func cycleRepeatMode() {
+        engine.cycleRepeatMode()
+        refreshModesState()
+    }
+
+    public func toggleShuffle() {
+        engine.toggleShuffle()
+        refreshModesState()
     }
 
     // MARK: - State Refresh
 
-    /// Refreshes all @Observable properties from the current player state.
-    public func refreshState() {
-        statePublisher.updateFromPlayer()
-        isPlaying = statePublisher.isPlaying
-        currentTime = statePublisher.currentTimeMs / 1000
-        duration = statePublisher.durationMs / 1000
-        nowPlayingTitle = statePublisher.nowPlayingTitle
-        nowPlayingArtist = statePublisher.nowPlayingArtist
-        nowPlayingAlbum = statePublisher.nowPlayingAlbum
-        nowPlayingArtworkURL = statePublisher.nowPlayingArtworkURL
+    private func refreshAuthState() {
+        authorizationStatus = auth.status
+    }
+
+    private func refreshPlaybackState() {
+        isPlaying = engine.isPlaying
+        currentTime = engine.currentTime
+        duration = engine.duration
+        nowPlayingTitle = engine.nowPlaying?.title
+        nowPlayingArtist = engine.nowPlaying?.artistName
+        nowPlayingAlbum = engine.nowPlaying?.albumTitle
+        nowPlayingArtworkURL = engine.nowPlaying?.artwork?.url(width: 300, height: 300)
+        errorMessage = engine.errorMessage
+        refreshModesState()
+    }
+
+    private func refreshModesState() {
+        repeatMode = engine.repeatMode
+        shuffleMode = engine.shuffleMode
+    }
+
+    // MARK: - Timer
+
+    /// 4 Hz timer refreshes stored properties so SwiftUI sees changes.
+    private func startUITimer() {
+        uiTimer?.invalidate()
+        uiTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshPlaybackState()
+            }
+        }
     }
 }

@@ -46,7 +46,7 @@ public final class PlayerStatePublisher {
                     height: 300
                 )
             }
-            durationMs = song.duration ?? 0 * 1000
+            durationMs = (song.duration ?? 0) * 1000
         } else {
             nowPlayingTitle = nil
             nowPlayingArtist = nil

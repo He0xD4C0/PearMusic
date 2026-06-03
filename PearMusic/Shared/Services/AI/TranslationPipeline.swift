@@ -31,9 +31,7 @@ public final class TranslationPipeline: @unchecked Sendable {
 
         // Check cache
         let cacheKey = "\(songId):\(sourceLang):\(targetLang)"
-        _lock.lock()
-        let cached = _cache[cacheKey]
-        _lock.unlock()
+        let cached = _lock.withLock { _cache[cacheKey] }
         if let cached, cached.originalLineCount == lines.count {
             return cached.translatedLines
         }
@@ -64,9 +62,7 @@ public final class TranslationPipeline: @unchecked Sendable {
             translatedLines: translated,
             modelUsed: "deepseek-chat"
         )
-        _lock.lock()
-        _cache[cacheKey] = entry
-        _lock.unlock()
+        _lock.withLock { _cache[cacheKey] = entry }
 
         return translated
     }

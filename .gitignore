@@ -31,6 +31,9 @@ Thumbs.db
 *.env
 *.xcconfig.local
 
+# Secrets
+**/Secrets.plist
+
 # Debug artifacts
 debug-screenshot-*.png
 
