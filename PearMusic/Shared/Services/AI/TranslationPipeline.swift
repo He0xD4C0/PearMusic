@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 // MARK: - Translation Pipeline
 
@@ -12,7 +11,8 @@ import os
 /// - Fallback: returns original lines on failure
 public final class TranslationPipeline: @unchecked Sendable {
     private let llmClient: LLMClient
-    private let _cache = OSAllocatedUnfairLock(initialState: [String: TranslationCacheEntry]())
+    private var _cache: [String: TranslationCacheEntry] = [:]
+    private let _lock = NSLock()
 
     public init(llmClient: LLMClient) {
         self.llmClient = llmClient
@@ -31,7 +31,9 @@ public final class TranslationPipeline: @unchecked Sendable {
 
         // Check cache
         let cacheKey = "\(songId):\(sourceLang):\(targetLang)"
-        let cached = _cache.withLock { $0[cacheKey] }
+        _lock.lock()
+        let cached = _cache[cacheKey]
+        _lock.unlock()
         if let cached, cached.originalLineCount == lines.count {
             return cached.translatedLines
         }
@@ -62,7 +64,9 @@ public final class TranslationPipeline: @unchecked Sendable {
             translatedLines: translated,
             modelUsed: "deepseek-chat"
         )
-        _cache.withLock { $0[cacheKey] = entry }
+        _lock.lock()
+        _cache[cacheKey] = entry
+        _lock.unlock()
 
         return translated
     }
