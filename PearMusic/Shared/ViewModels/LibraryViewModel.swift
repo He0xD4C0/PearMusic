@@ -20,7 +20,8 @@ public final class LibraryViewModel {
     // MARK: - State
 
     public var playlists: [Playlist] { library.playlists }
-    public var recentlyPlayed: [RecentlyPlayedItem] { library.recentlyPlayed }
+    public var recentlyPlayedAlbums: [Album] { library.recentlyPlayedAlbums }
+    public var recentlyPlayedPlaylists: [Playlist] { library.recentlyPlayedPlaylists }
     public var recommendations: [MusicPersonalRecommendation] { library.recommendations }
     public var librarySongs: [Song] {
         downloads.filterDownloaded(library.librarySongs)
@@ -56,11 +57,11 @@ public final class LibraryViewModel {
     }
 
     public func fetchRecommendations() async throws {
-        try await library.fetchRecommendations()
+        _ = try await library.fetchRecommendations()
     }
 
     public func fetchLibrarySongs() async throws {
-        try await library.fetchLibrarySongs()
+        _ = try await library.fetchLibrarySongs()
     }
 
     public func createPlaylist(name: String, description: String = "") async throws -> Playlist {

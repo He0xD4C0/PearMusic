@@ -17,10 +17,16 @@ struct BrowseView: View {
                     .font(.largeTitle.bold())
                     .padding(.horizontal)
 
-                // Recently Played
-                if !libraryVM.recentlyPlayed.isEmpty {
-                    sectionHeader("Recently Played")
-                    recentlyPlayedGrid
+                // Recently Played Albums
+                if !libraryVM.recentlyPlayedAlbums.isEmpty {
+                    sectionHeader("Recently Played Albums")
+                    recentlyPlayedAlbumGrid
+                }
+
+                // Recently Played Playlists
+                if !libraryVM.recentlyPlayedPlaylists.isEmpty {
+                    sectionHeader("Recently Played Playlists")
+                    recentlyPlayedPlaylistGrid
                 }
 
                 // Recommendations
@@ -46,7 +52,8 @@ struct BrowseView: View {
                 }
 
                 // Empty state
-                if libraryVM.recentlyPlayed.isEmpty
+                if libraryVM.recentlyPlayedAlbums.isEmpty
+                    && libraryVM.recentlyPlayedPlaylists.isEmpty
                     && libraryVM.recommendations.isEmpty
                     && libraryVM.librarySongs.isEmpty
                     && !libraryVM.isLoading {
@@ -71,23 +78,22 @@ struct BrowseView: View {
             .padding(.horizontal)
     }
 
-    // MARK: - Recently Played
+    // MARK: - Recently Played Albums
 
-    private var recentlyPlayedGrid: some View {
+    private var recentlyPlayedAlbumGrid: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 16) {
-                ForEach(libraryVM.recentlyPlayed, id: \.id) { item in
-                    recentlyPlayedCard(item)
+                ForEach(libraryVM.recentlyPlayedAlbums, id: \.id) { album in
+                    recentlyPlayedAlbumCard(album)
                 }
             }
             .padding(.horizontal)
         }
     }
 
-    private func recentlyPlayedCard(_ item: RecentlyPlayedItem) -> some View {
+    private func recentlyPlayedAlbumCard(_ album: Album) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Artwork
-            if let artwork = item.artwork {
+            if let artwork = album.artwork {
                 AsyncImage(url: artwork.url(width: 160, height: 160)) { phase in
                     switch phase {
                     case .success(let image):
@@ -98,39 +104,90 @@ struct BrowseView: View {
                 }
                 .frame(width: 160, height: 160)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.15))
+                    .frame(width: 160, height: 160)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            Text(item.title)
+            Text(album.title)
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .lineLimit(1)
                 .frame(width: 160, alignment: .leading)
 
-            Text(item.subtitle ?? "")
+            Text(album.artistName)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .frame(width: 160, alignment: .leading)
         }
         .onTapGesture {
-            Task {
-                // Play the item if it's a playlist
-                await playRecentlyPlayedItem(item)
-            }
+            Task { await playAlbum(album) }
         }
     }
 
-    private func playRecentlyPlayedItem(_ item: RecentlyPlayedItem) async {
-        // RecentlyPlayedItem can be albums, playlists, stations, etc.
-        // For now, try to play it. If it's a playlist container, fetch tracks.
+    // MARK: - Recently Played Playlists
+
+    private var recentlyPlayedPlaylistGrid: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 16) {
+                ForEach(libraryVM.recentlyPlayedPlaylists, id: \.id) { playlist in
+                    recentlyPlayedPlaylistCard(playlist)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func recentlyPlayedPlaylistCard(_ playlist: Playlist) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let artwork = playlist.artwork {
+                AsyncImage(url: artwork.url(width: 160, height: 160)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    default:
+                        Rectangle().fill(Color.secondary.opacity(0.15))
+                    }
+                }
+                .frame(width: 160, height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.15))
+                    .frame(width: 160, height: 160)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            Text(playlist.name)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .frame(width: 160, alignment: .leading)
+
+            Text("Playlist")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 160, alignment: .leading)
+        }
+        .onTapGesture {
+            Task { try? await libraryVM.playPlaylist(playlist) }
+        }
+    }
+
+    // MARK: - Play Album
+
+    private func playAlbum(_ album: Album) async {
         do {
-            // Try searching for the title as a fallback
-            let songs = try await playerVM.search(query: item.title, limit: 1)
+            // Search for the album's tracks
+            let songs = try await playerVM.search(query: "\(album.title) \(album.artistName)", limit: 1)
             if let song = songs.first {
                 await playerVM.play(song: song)
             }
         } catch {
-            // Silently fail — browse items may not always be playable
+            // Silently fail
         }
     }
 
@@ -176,7 +233,7 @@ struct BrowseView: View {
 
             Image(systemName: "chevron.right")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
         .padding(12)
         .background(Color.secondary.opacity(0.08))
@@ -220,10 +277,11 @@ struct BrowseView: View {
 
             Spacer()
 
-            Image(systemName: "ellipsis")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .opacity(0)
+            if libraryVM.isDownloaded(song) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
