@@ -48,10 +48,10 @@ Timer 60fps 同步滚动 (O(log n) 二分查找)
 | RSA 签名 | `SecKeyCreateSignature(.rsaSignatureDigestPKCS1v15SHA256)` |
 | 网络 | `URLSession` + async/await |
 | 密钥存储 | Keychain (`kSecAttrAccessibleAfterFirstUnlock`) |
-| AI 翻译 | DeepSeek / OpenAI 兼容 API |
+| AI 翻译 | 任何 OpenAI 兼容 API |
 | 最低版本 | macOS 14.0 / iOS 17.0 |
 
-> 为什么用 Security Framework 而不是 CryptoKit？因为 CryptoKit 的 `RSA.Signing.PrivateKey` 在当前 toolchain 不可用。
+> 为什么用 Security Framework 而不是 CryptoKit？因为 CryptoKit 的 `RSA.Signing.PrivateKey` 在当前 toolchain 不可用。（这句话是AI写的我看不懂不关我事🤷）
 
 ## 项目结构
 
@@ -103,6 +103,8 @@ open PearMusic.xcodeproj
 - **`@Observable` computed property 不触发 UI 更新** — 跨对象边界的 computed property 不会 dirty-track。解决方案：用 stored property + 4Hz Timer 手动刷新。
 - **`CADisplayLink` 跨平台不可用** — macOS 没有 `CADisplayLink`。改用 `Timer.scheduledTimer` 60fps。
 - **CryptoKit `RSA.Signing` 不存在** — 当前 toolchain 里没有。改用 Security Framework 的 `SecKeyCreateSignature`。
+
+> AI 写的，不关我事🤷，反正也可以一遍又一遍地把错误代码贴回 AI 让它 AutoCopilot。
 
 ## License
 
