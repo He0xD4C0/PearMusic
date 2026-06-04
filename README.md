@@ -6,13 +6,13 @@
 
 与 Apple Music 唱唱反调，一个根本不会写程序的人用 Vibe Coding 全程自嗨罢了。
 
-因为 Apple 的版权政策，你无法使用自定义歌词，亦无法接入任何 AI 翻译。Apple Music 的歌词接口是封闭的，第三方 App 连读都读不到，更别说翻译。于是我写了这个，把网易云的歌词和 AI 翻译管线嫁接到 MusicKit 上。
+因为 Apple 的版权政策，Apple Music 的歌词接口是封闭的，你无法使用自定义歌词，亦无法接入任何 AI 翻译。于是我写了这个，把网易云的歌词和 AI 翻译管线嫁接到 MusicKit 上。
 
 **但是编译需要 Apple Developer Program**（$99/年），因为 `com.apple.developer.musickit` entitlement 必须通过付费证书签名。没有这个，MusicKit 无法生成 JWT，直接 `ICError -7013`。我卡在这里了。
 
-如果你有付费开发者账号，开箱即用。所有的逻辑都是完整的。
+如果你有付费开发者账号，你可以尝试继续。所有的逻辑都是完整的。
 
-包含了 **MusicKit 官方 API 文档**和 **Apple Music API 参考文档**，需要的可以自取。
+包含了 **MusicKit 官方 API 文档**和 **Apple Music API 参考文档**，和一小部分网易云API文档，需要的可以自取。（问就是给 AI 看的）
 
 ---
 
@@ -33,7 +33,7 @@ MusicKit 播放 (自动 JWT，无需手动配置)
     └─ 没歌词？     → 显示 "Unavailable" ❌
     │
     ▼
-Timer 60fps 同步滚动 (O(log n) 二分查找)
+Timer 60fps 同步滚动 (O(log n) 二分查找) （AI 写的不关我事）
 ```
 
 ## 技术栈
@@ -109,3 +109,4 @@ open PearMusic.xcodeproj
 ## License
 
 MIT
+作者保留所有权利。
