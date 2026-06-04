@@ -14,9 +14,9 @@ A view that displays the image for a music item’s artwork.
 ## Overview
 
 You can create an artwork image with an instance of
-[`Artwork`](/musickit/artwork.md).
+[`Artwork`](../musickit/artwork.md).
 
-While the artwork’s image data is loading, [`ArtworkImage`](/documentation/MusicKit/ArtworkImage)
+While the artwork’s image data is loading, [`ArtworkImage`](../musickit/artworkimage.md)
 automatically displays a placeholder with a solid color that matches the
-[`backgroundColor`](/musickit/artwork/backgroundcolor.md)
+[`backgroundColor`](../musickit/artwork/backgroundcolor.md)
 property of the artwork to render.

@@ -30,78 +30,78 @@ an active Apple Music subscription.
 > terminates your app when it tries to access the user’s music.
 
 Request permission for your app to use MusicKit with
-[`MusicAuthorization`](/documentation/MusicKit/MusicAuthorization).
-Check specific capabilities for the current [`MusicSubscription`](/documentation/MusicKit/MusicSubscription)
+[`MusicAuthorization`](../musickit/musicauthorization.md).
+Check specific capabilities for the current [`MusicSubscription`](../musickit/musicsubscription.md)
 to ensure your music-related functionality is available to the user.
 Find music items using a search term with
-[`MusicCatalogSearchRequest`](/documentation/MusicKit/MusicCatalogSearchRequest), or find music items using a filter
-with [`MusicCatalogResourceRequest`](/documentation/MusicKit/MusicCatalogResourceRequest).
+[`MusicCatalogSearchRequest`](../musickit/musiccatalogsearchrequest.md), or find music items using a filter
+with [`MusicCatalogResourceRequest`](../musickit/musiccatalogresourcerequest.md).
 Play music in your app with one of the two music players that MusicKit offers.
 Allow the user to begin a free trial for Apple Music from within your app
 by presenting a music subscription offer.
 
 You can load content from an arbitrary Apple Music API endpoint
-with [`MusicDataRequest`](/documentation/MusicKit/MusicDataRequest) to take further advantage of
+with [`MusicDataRequest`](../musickit/musicdatarequest.md) to take further advantage of
 additional functionality available in Apple Music API.
 
 ## Topics
 
 ### Essentials
 
-[Using Automatic Developer Token Generation for Apple Music API](/documentation/MusicKit/Using-Automatic-Token-Generation-for-Apple-Music-API)
+[Using Automatic Developer Token Generation for Apple Music API](../musickit/using-automatic-token-generation-for-apple-music-api.md)
 
 Enable your app’s integration with the MusicKit App Service in
 the developer portal.
 
-  [`using_musickit_to_integrate_with_apple_music`](/musickit/using_musickit_to_integrate_with_apple_music.md)
+  [`using_musickit_to_integrate_with_apple_music`](../musickit/using_musickit_to_integrate_with_apple_music.md)
 
-  [`NSAppleMusicUsageDescription`](/bundleresources/information-property-list/nsapplemusicusagedescription.md)
+  [`NSAppleMusicUsageDescription`](../bundleresources/information-property-list/nsapplemusicusagedescription.md)
 
 ### Music Items
 
 A set of value types represents each kind of music item.
 
-[`Album`](/documentation/MusicKit/Album)
+[`Album`](../musickit/album.md)
 
 A music item that represents an album.
 
-[`Artist`](/documentation/MusicKit/Artist)
+[`Artist`](../musickit/artist.md)
 
 A music item that represents an artist.
 
-[`Curator`](/documentation/MusicKit/Curator)
+[`Curator`](../musickit/curator.md)
 
 A music item that represents a curator.
 
-[`Genre`](/documentation/MusicKit/Genre)
+[`Genre`](../musickit/genre.md)
 
 A music item that represents a genre.
 
-[`MusicVideo`](/documentation/MusicKit/MusicVideo)
+[`MusicVideo`](../musickit/musicvideo.md)
 
 A music item that represents a music video.
 
-[`Playlist`](/documentation/MusicKit/Playlist)
+[`Playlist`](../musickit/playlist.md)
 
 A music item that represents a playlist.
 
-[`RadioShow`](/documentation/MusicKit/RadioShow)
+[`RadioShow`](../musickit/radioshow.md)
 
 A music item that represents a radio show.
 
-[`RecordLabel`](/documentation/MusicKit/RecordLabel)
+[`RecordLabel`](../musickit/recordlabel.md)
 
 A music item that represents a record label.
 
-[`Song`](/documentation/MusicKit/Song)
+[`Song`](../musickit/song.md)
 
 A music item that represents a song.
 
-[`Station`](/documentation/MusicKit/Station)
+[`Station`](../musickit/station.md)
 
 A music item that represents a station.
 
-[`Track`](/documentation/MusicKit/Track)
+[`Track`](../musickit/track.md)
 
 A music item that represents a track.
 
@@ -109,15 +109,15 @@ A music item that represents a track.
 
 A set of structured attributes for music items.
 
-[`ContentRating`](/documentation/MusicKit/ContentRating)
+[`ContentRating`](../musickit/contentrating.md)
 
 The rating of the content that potentially plays while playing a resource.
 
-[`EditorialNotes`](/documentation/MusicKit/EditorialNotes)
+[`EditorialNotes`](../musickit/editorialnotes.md)
 
 An object that represents editorial notes.
 
-[`PreviewAsset`](/documentation/MusicKit/PreviewAsset)
+[`PreviewAsset`](../musickit/previewasset.md)
 
 An object that represents a preview for resources.
 
@@ -126,16 +126,16 @@ An object that represents a preview for resources.
 The catalog search request allows your app to find music items
 in the Apple Music catalog.
 
-[`MusicCatalogSearchRequest`](/documentation/MusicKit/MusicCatalogSearchRequest)
+[`MusicCatalogSearchRequest`](../musickit/musiccatalogsearchrequest.md)
 
 A request that your app uses to fetch items from the Apple Music catalog
 using a search term.
 
-[`MusicCatalogSearchResponse`](/documentation/MusicKit/MusicCatalogSearchResponse)
+[`MusicCatalogSearchResponse`](../musickit/musiccatalogsearchresponse.md)
 
 An object that contains results for a catalog search request.
 
-[`MusicCatalogSearchable`](/documentation/MusicKit/MusicCatalogSearchable)
+[`MusicCatalogSearchable`](../musickit/musiccatalogsearchable.md)
 
 A protocol for music items that your app can fetch by
 using a catalog search request.
@@ -147,106 +147,106 @@ a specific filter. Each music item type has its own set of properties
 you can use as a filter for a catalog resource request when loading music items
 for your app.
 
-[`MusicCatalogResourceRequest`](/documentation/MusicKit/MusicCatalogResourceRequest)
+[`MusicCatalogResourceRequest`](../musickit/musiccatalogresourcerequest.md)
 
 A request that your app uses to fetch items from the Apple Music catalog
 using a filter.
 
-[`MusicCatalogResourceResponse`](/documentation/MusicKit/MusicCatalogResourceResponse)
+[`MusicCatalogResourceResponse`](../musickit/musiccatalogresourceresponse.md)
 
 An object that contains results for a catalog resource request.
 
-[`AlbumFilter`](/documentation/MusicKit/AlbumFilter)
+[`AlbumFilter`](../musickit/albumfilter.md)
 
 Album properties your app uses as a filter for a catalog resource request.
 
-[`ArtistFilter`](/documentation/MusicKit/ArtistFilter)
+[`ArtistFilter`](../musickit/artistfilter.md)
 
 Artist properties your app uses as a filter for a catalog resource request.
 
-[`CuratorFilter`](/documentation/MusicKit/CuratorFilter)
+[`CuratorFilter`](../musickit/curatorfilter.md)
 
 Curator properties your app uses as a filter for a catalog resource request.
 
-[`GenreFilter`](/documentation/MusicKit/GenreFilter)
+[`GenreFilter`](../musickit/genrefilter.md)
 
 Genre properties your app uses as a filter for a catalog resource request.
 
-[`MusicVideoFilter`](/documentation/MusicKit/MusicVideoFilter)
+[`MusicVideoFilter`](../musickit/musicvideofilter.md)
 
 Music video properties your app uses as a filter
 for a catalog resource request.
 
-[`PlaylistFilter`](/documentation/MusicKit/PlaylistFilter)
+[`PlaylistFilter`](../musickit/playlistfilter.md)
 
 Playlist properties your app uses as a filter
 for a catalog resource request.
 
-[`RadioShowFilter`](/documentation/MusicKit/RadioShowFilter)
+[`RadioShowFilter`](../musickit/radioshowfilter.md)
 
 Radio Show properties your app uses as a filter for a catalog resource request.
 
-[`RecordLabelFilter`](/documentation/MusicKit/RecordLabelFilter)
+[`RecordLabelFilter`](../musickit/recordlabelfilter.md)
 
 The set of record label properties your app uses as a filter
 for a catalog resource request.
 
-[`SongFilter`](/documentation/MusicKit/SongFilter)
+[`SongFilter`](../musickit/songfilter.md)
 
 Song properties your app uses as a filter for a catalog resource request.
 
-[`StationFilter`](/documentation/MusicKit/StationFilter)
+[`StationFilter`](../musickit/stationfilter.md)
 
 The set of station properties your app uses as a filter
 for a catalog resource request.
 
-[`FilterableMusicItem`](/documentation/MusicKit/FilterableMusicItem)
+[`FilterableMusicItem`](../musickit/filterablemusicitem.md)
 
 A declaration of the associated type that contains the set of music item
 properties your app uses as a filter for a catalog resource request.
 
 ### General Purpose Data Request
 
-[`MusicDataRequest`](/documentation/MusicKit/MusicDataRequest)
+[`MusicDataRequest`](../musickit/musicdatarequest.md)
 
 A request for loading data from an arbitrary Apple Music API endpoint.
 
-[`MusicDataResponse`](/documentation/MusicKit/MusicDataResponse)
+[`MusicDataResponse`](../musickit/musicdataresponse.md)
 
 An object containing results for a data request.
 
 ### Playback
 
-[`ApplicationMusicPlayer`](/documentation/MusicKit/ApplicationMusicPlayer)
+[`ApplicationMusicPlayer`](../musickit/applicationmusicplayer.md)
 
 An object your app uses to play music in a way that doesn’t affect
 the Music app’s state.
 
-[`SystemMusicPlayer`](/documentation/MusicKit/SystemMusicPlayer)
+[`SystemMusicPlayer`](../musickit/systemmusicplayer.md)
 
 An object your app uses to play music by controlling the Music app’s state.
 
-[`MusicPlayer`](/documentation/MusicKit/MusicPlayer)
+[`MusicPlayer`](../musickit/musicplayer.md)
 
 An object your app uses to play music.
 
-[`PlayableMusicItem`](/documentation/MusicKit/PlayableMusicItem)
+[`PlayableMusicItem`](../musickit/playablemusicitem.md)
 
 A set of properties that a music player uses to initiate playback
 for a music item.
 
-[`PlayParameters`](/documentation/MusicKit/PlayParameters)
+[`PlayParameters`](../musickit/playparameters.md)
 
 An opaque object that represents parameters to initiate playback
 of a playable music item using a music player.
 
 ### Artwork
 
-[`Artwork`](/documentation/MusicKit/Artwork)
+[`Artwork`](../musickit/artwork.md)
 
 An object that represents artwork for a music item.
 
-[`ArtworkImage`](/documentation/MusicKit/ArtworkImage)
+[`ArtworkImage`](../musickit/artworkimage.md)
 
 A view that displays the image for a music item’s artwork.
 
@@ -255,19 +255,19 @@ A view that displays the image for a music item’s artwork.
 Before you can use any of the functionality of the framework, you need to
 request the user’s informed consent for your app to access their music data.
 
-[`MusicAuthorization`](/documentation/MusicKit/MusicAuthorization)
+[`MusicAuthorization`](../musickit/musicauthorization.md)
 
 A type that allows you to request the user’s informed consent
 for your app to access their music data.
 
 ### Apple Music Subscription
 
-[`MusicSubscription`](/documentation/MusicKit/MusicSubscription)
+[`MusicSubscription`](../musickit/musicsubscription.md)
 
 A representation of the current state of the user’s subscription
 to Apple Music.
 
-[`MusicSubscriptionOffer`](/documentation/MusicKit/MusicSubscriptionOffer)
+[`MusicSubscriptionOffer`](../musickit/musicsubscriptionoffer.md)
 
 A type for grouping other types for showing subscription offers
 for Apple Music.
@@ -278,87 +278,87 @@ The framework manages tokens for accessing Apple Music API automatically
 by default, but you can generate your own developer token by creating
 a class that inherits from the token provider type alias.
 
-[`MusicTokenProvider`](/documentation/MusicKit/MusicTokenProvider)
+[`MusicTokenProvider`](../musickit/musictokenprovider.md)
 
 An object that music requests use to access Apple Music API.
 
-[`MusicDeveloperTokenProvider`](/documentation/MusicKit/MusicDeveloperTokenProvider)
+[`MusicDeveloperTokenProvider`](../musickit/musicdevelopertokenprovider.md)
 
 A set of methods that music requests use to access Apple Music API.
 
-[`MusicUserTokenProvider`](/documentation/MusicKit/MusicUserTokenProvider)
+[`MusicUserTokenProvider`](../musickit/musicusertokenprovider.md)
 
 A class that music requests use to fetch user tokens your app requires
 to access Apple Music API.
 
-[`MusicTokenRequestOptions`](/documentation/MusicKit/MusicTokenRequestOptions)
+[`MusicTokenRequestOptions`](../musickit/musictokenrequestoptions.md)
 
 Options that music requests pass into token provider methods to fetch
 a required token for accessing Apple Music API.
 
-[`MusicTokenRequestError`](/documentation/MusicKit/MusicTokenRequestError)
+[`MusicTokenRequestError`](../musickit/musictokenrequesterror.md)
 
 An error that the token provider or music requests can throw
 upon requesting any token necessary for accessing Apple Music API.
 
-[`DefaultMusicTokenProvider`](/documentation/MusicKit/DefaultMusicTokenProvider)
+[`DefaultMusicTokenProvider`](../musickit/defaultmusictokenprovider.md)
 
 The default token provider that music requests use to access
 Apple Music API.
 
 ### Utility
 
-[`MusicItem`](/documentation/MusicKit/MusicItem)
+[`MusicItem`](../musickit/musicitem.md)
 
 A protocol with basic requirements for music items.
 
-[`MusicItemID`](/documentation/MusicKit/MusicItemID)
+[`MusicItemID`](../musickit/musicitemid.md)
 
 An object that represents a unique identifier for a music item.
 
-[`MusicItemCollection`](/documentation/MusicKit/MusicItemCollection)
+[`MusicItemCollection`](../musickit/musicitemcollection.md)
 
 A collection of music items.
 
-[`MusicPropertyContainer`](/documentation/MusicKit/MusicPropertyContainer)
+[`MusicPropertyContainer`](../musickit/musicpropertycontainer.md)
 
 A protocol for music items that allow loading additional
 properties that you can fetch asynchronously.
 
-[`MusicRelationshipProperty`](/documentation/MusicKit/MusicRelationshipProperty)
+[`MusicRelationshipProperty`](../musickit/musicrelationshipproperty.md)
 
 An identifier for a music item relationship property
 from a specific root type to a specific value type
 for the element of the resulting collection.
 
-[`MusicExtendedAttributeProperty`](/documentation/MusicKit/MusicExtendedAttributeProperty)
+[`MusicExtendedAttributeProperty`](../musickit/musicextendedattributeproperty.md)
 
 An identifier for a music item extended attribute property
 from a specific root type to a specific resulting value type.
 
-[`MusicAttributeProperty`](/documentation/MusicKit/MusicAttributeProperty)
+[`MusicAttributeProperty`](../musickit/musicattributeproperty.md)
 
 An identifier for a music item attribute property
 from a specific root type to a specific resulting value type.
 
-[`PartialMusicAsyncProperty`](/documentation/MusicKit/PartialMusicAsyncProperty)
+[`PartialMusicAsyncProperty`](../musickit/partialmusicasyncproperty.md)
 
 A partially type-erased identifier for a music item property
 that you can fetch asynchronously from a concrete root type
 to any resulting value type.
 
-[`PartialMusicProperty`](/documentation/MusicKit/PartialMusicProperty)
+[`PartialMusicProperty`](../musickit/partialmusicproperty.md)
 
 A partially type-erased identifier for a music item property
 from a concrete root type to any resulting value type.
 
-[`AnyMusicProperty`](/documentation/MusicKit/AnyMusicProperty)
+[`AnyMusicProperty`](../musickit/anymusicproperty.md)
 
 A type-erased identifier for a music item property, from any root type
 to any resulting value type.
 
 ## See Also
 
-  [`MediaPlayer`](/mediaplayer.md)
+  [`MediaPlayer`](../mediaplayer.md)
 
-  [`AppleMusicAPI`](/applemusicapi.md)
+  [`AppleMusicAPI`](../applemusicapi.md)

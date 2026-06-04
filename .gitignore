@@ -40,3 +40,6 @@ debug-screenshot-*.png
 # Agent Files
 .claude
 
+# Embedded sample repos
+docs/sample-code/
+

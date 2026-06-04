@@ -1,0 +1,113 @@
+---
+title: "Get Multiple Storefronts"
+source: https://developer.apple.com/documentation/AppleMusicAPI/Get-Multiple-Storefronts
+date: 2026-06-03
+---
+# Get Multiple Storefronts
+
+Fetch one or more storefronts by using their identifiers.
+
+## Discussion
+
+If successful, the HTTP status code is 200 (OK) and the `data` array contains one or more [`Storefronts`](../applemusicapi/storefronts.md) objects. If unsuccessful, the HTTP status code indicates the error and the details are in the `errors` array.
+
+### Example
+
+**Request:**
+
+```
+https://api.music.apple.com/v1/storefronts?ids=us,ca,cn,au,hk
+```
+
+**Response:**
+
+```json
+{
+    "data": [
+        {
+            "id": "us",
+            "type": "storefronts",
+            "href": "/v1/storefronts/us",
+            "attributes": {
+                "explicitContentPolicy": "allowed",
+                "defaultLanguageTag": "en-US",
+                "name": "United States",
+                "supportedLanguageTags": [
+                    "en-US",
+                    "es-MX",
+                    "ar",
+                    "ru",
+                    "zh-Hans-CN"
+                ]
+            }
+        },
+        {
+            "id": "ca",
+            "type": "storefronts",
+            "href": "/v1/storefronts/ca",
+            "attributes": {
+                "explicitContentPolicy": "allowed",
+                "defaultLanguageTag": "en-CA",
+                "name": "Canada",
+                "supportedLanguageTags": [
+                    "en-CA",
+                    "fr-CA"
+                ]
+            }
+        },
+        {
+            "id": "cn",
+            "type": "storefronts",
+            "href": "/v1/storefronts/cn",
+            "attributes": {
+                "explicitContentPolicy": "allowed",
+                "defaultLanguageTag": "zh-Hans-CN",
+                "name": "China mainland",
+                "supportedLanguageTags": [
+                    "zh-Hans-CN",
+                    "en-GB"
+                ]
+            }
+        },
+        {
+            "id": "au",
+            "type": "storefronts",
+            "href": "/v1/storefronts/au",
+            "attributes": {
+                "explicitContentPolicy": "allowed",
+                "defaultLanguageTag": "en-AU",
+                "name": "Australia",
+                "supportedLanguageTags": [
+                    "en-AU",
+                    "en-GB"
+                ]
+            }
+        },
+        {
+            "id": "hk",
+            "type": "storefronts",
+            "href": "/v1/storefronts/hk",
+            "attributes": {
+                "explicitContentPolicy": "allowed",
+                "defaultLanguageTag": "zh-Hant-HK",
+                "name": "Hong Kong",
+                "supportedLanguageTags": [
+                    "zh-Hant-HK",
+                    "en-GB",
+                    "zh-Hant-TW"
+                ]
+            }
+        }
+    ]
+}
+```
+
+## See Also
+
+[`Storefronts`](../applemusicapi/storefronts.md)
+
+A resource object that represents a storefront, an Apple Music and iTunes Store territory that the content is available in.
+
+[`StorefrontsResponse`](../applemusicapi/storefrontsresponse.md)
+
+The response to a storefront request.

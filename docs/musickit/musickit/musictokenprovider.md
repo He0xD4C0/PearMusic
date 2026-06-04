@@ -14,5 +14,5 @@ typealias MusicTokenProvider = MusicUserTokenProvider & MusicDeveloperTokenProvi
 ## Discussion
 
 A token provider for MusicKit needs to be a subclass of
-[`MusicUserTokenProvider`](/documentation/MusicKit/MusicUserTokenProvider) which conforms to the
-[`MusicDeveloperTokenProvider`](/documentation/MusicKit/MusicDeveloperTokenProvider) protocol.
+[`MusicUserTokenProvider`](../musickit/musicusertokenprovider.md) which conforms to the
+[`MusicDeveloperTokenProvider`](../musickit/musicdevelopertokenprovider.md) protocol.

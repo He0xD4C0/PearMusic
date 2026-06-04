@@ -1,30 +1,33 @@
 #!/usr/bin/env node
 /**
- * Apple Developer Documentation Fetcher
- * Fetches official .md files from docs.developer.apple.com/tutorials/data/documentation/
+ * Apple Developer Documentation Fetcher (Concurrent)
+ * Fetches official .md files with parallel requests.
  *
- * Usage: node scripts/fetch_docs.js
+ * Usage: node fetch_docs.js [concurrency=10]
  * Output: docs/apple-music-api/*.md, docs/musickit/*.md
  */
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const BASE_MD = 'https://docs.developer.apple.com/tutorials/data/documentation';
 const OUTPUT_DIR = path.join(__dirname, '..', 'docs');
+const CONCURRENCY = Math.min(parseInt(process.argv[2]) || 16, 32);
+
 const TARGETS = [
   { name: 'apple-music-api', path: 'applemusicapi', title: 'Apple Music API' },
   { name: 'musickit', path: 'MusicKit', title: 'MusicKit' },
 ];
 
 // ---------------------------------------------------------------------------
-// Fetch with retry
+// Concurrent fetch with retry
 // ---------------------------------------------------------------------------
-async function fetchMD(url, retries = 3) {
+async function fetchMD(url, retries = 2) {
   for (let i = 0; i < retries; i++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
@@ -33,27 +36,24 @@ async function fetchMD(url, retries = 3) {
         },
       });
       clearTimeout(timeout);
-      if (res.ok) return await res.text();
-      if (res.status === 404) return null; // Page doesn't exist
-      console.log(`  ⚠️ HTTP ${res.status} for ${url}, retry ${i + 1}/${retries}`);
+      if (res.ok) return { ok: true, text: await res.text() };
+      if (res.status === 404) return { ok: false, text: null };
+      if (i < retries - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)));
     } catch (e) {
-      console.log(`  ⚠️ ${e.message}, retry ${i + 1}/${retries}`);
+      if (i < retries - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)));
     }
-    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
   }
-  return null;
+  return { ok: false, text: null };
 }
 
 // ---------------------------------------------------------------------------
-// Extract relative documentation links from markdown
+// Extract documentation links
 // ---------------------------------------------------------------------------
 function extractDocLinks(markdown, basePath) {
   if (!markdown) return [];
   const links = new Set();
-  // Match: [text](/documentation/BasePath/...) or [text](/documentation/BasePath)
   const pattern = new RegExp(`\\]\\(/documentation/${basePath}(/[^)\\s#]*)?\\)`, 'gi');
-  const matches = markdown.matchAll(pattern);
-  for (const m of matches) {
+  for (const m of markdown.matchAll(pattern)) {
     const linkPath = m[0].match(/\(\/documentation\/([^)\s#]*)/)[1];
     links.add(linkPath);
   }
@@ -61,82 +61,77 @@ function extractDocLinks(markdown, basePath) {
 }
 
 // ---------------------------------------------------------------------------
-// Convert Apple doc:// links and internal /documentation/ links to relative .md
+// Concurrent crawl: discover + fetch all pages using worker pool
 // ---------------------------------------------------------------------------
-function normalizeLinks(markdown, currentPath) {
-  if (!markdown) return '';
-  let md = markdown;
+async function discoverAndFetch(basePath) {
+  const visited = new Set();
+  const results = [];
+  const queue = [basePath];
+  let active = 0;
+  let done = 0;
 
-  // Convert doc:// links
-  md = md.replace(/<doc:\/\/com\.apple\.documentation\/documentation\/([^>]+)>/g,
-    (_, p) => `[${p}](../${p.toLowerCase()}.md)`);
+  return new Promise((resolve) => {
+    const tick = () => {
+      // Start new workers while under concurrency limit and queue has items
+      while (active < CONCURRENCY && queue.length > 0) {
+        const current = queue.shift();
+        if (visited.has(current)) continue;
+        visited.add(current);
+        active++;
 
-  // Keep /documentation/ links as-is (they'll work in browser context)
-  // but also add local .md references for offline browsing
-  md = md.replace(/\]\(\/documentation\/([^)\s]+)\)/g, (match, p) => {
-    const localFile = '../' + p.toLowerCase() + '.md';
-    return `](/documentation/${p}) ([local](${localFile}))`;
-  });
-
-  return md;
-}
-
-// ---------------------------------------------------------------------------
-// Discover all pages by crawling
-// ---------------------------------------------------------------------------
-async function discoverPages(basePath, visited = new Set(), queue = [basePath]) {
-  const allPages = [];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (visited.has(current)) continue;
-    visited.add(current);
-
-    const url = `${BASE_MD}/${current}.md`;
-    console.log(`  🔍 Discovering: ${current}`);
-
-    const content = await fetchMD(url);
-    if (!content) continue;
-
-    allPages.push({ docPath: current, content });
-
-    // Find more links to crawl (only direct children/related within same base)
-    const links = extractDocLinks(content, basePath);
-    for (const link of links) {
-      if (!visited.has(link)) {
-        queue.push(link);
+        const url = `${BASE_MD}/${current}.md`;
+        fetchMD(url).then(({ ok, text }) => {
+          if (ok && text) {
+            results.push({ docPath: current, content: text });
+            const links = extractDocLinks(text, basePath);
+            for (const link of links) {
+              if (!visited.has(link)) queue.push(link);
+            }
+          }
+          active--;
+          done++;
+          if (done % 50 === 0) process.stderr.write(`\r  📄 ${done} pages (${queue.length} queued)...`);
+          tick(); // Try to spawn more workers
+        });
       }
-    }
-  }
 
-  return allPages;
+      // Check if done
+      if (active === 0 && queue.length === 0) {
+        process.stderr.write(`\r  ✅ ${results.length} pages discovered\n`);
+        resolve(results);
+      }
+    };
+
+    tick();
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Save page
 // ---------------------------------------------------------------------------
-function savePage(targetDir, docPath, content, basePath) {
-  // Build file path from doc path
+function savePage(targetDir, docPath, content) {
   const relativePath = docPath.toLowerCase();
   const filePath = path.join(targetDir, relativePath + '.md');
-  const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
-  // Strip JSON metadata comment
   let md = content;
   if (md.startsWith('<!--')) {
     const endIdx = md.indexOf('-->');
     if (endIdx !== -1) md = md.slice(endIdx + 3).trim();
   }
 
-  // Convert doc:// links
+  // doc:// links -> relative
   md = md.replace(/<doc:\/\/com\.apple\.documentation\/documentation\/([^>]+)>/g,
-    (_, p) => `[\`${p.split('/').pop()}\`](/${p.toLowerCase()}.md)`);
+    (_, p) => `[\`${p.split('/').pop()}\`](../${p.toLowerCase()}.md)`);
+
+  // /documentation/ links -> relative .md
+  md = md.replace(/\]\(\/documentation\/([^)\s#]+)([^)]*)\)/g, (_, p, suffix) => {
+    return `](../${p.toLowerCase()}.md${suffix})`;
+  });
 
   // Remove copyright footer
   md = md.replace(/\n---\n\nCopyright.*$/s, '');
 
-  // Add frontmatter
   const title = md.match(/^# (.+)$/m)?.[1] || docPath.split('/').pop();
   const frontmatter = [
     '---',
@@ -155,47 +150,39 @@ function savePage(targetDir, docPath, content, basePath) {
 // Generate README
 // ---------------------------------------------------------------------------
 function generateReadme(targetDir, target, pages) {
-  const indexPage = pages.find(p => p.docPath === target.path);
+  const indexPage = pages.find(p => p.docPath.toLowerCase() === target.path.toLowerCase());
   const indexMd = indexPage?.content || '';
 
   const lines = [
     `# ${target.title} Documentation`,
     '',
-    `> Official markdown from [developer.apple.com](https://developer.apple.com/documentation/${target.path})`,
+    `> Official markdown — source: [developer.apple.com](https://developer.apple.com/documentation/${target.path})`,
     `> Fetched: ${new Date().toISOString().split('T')[0]}`,
     '',
     `**${pages.length} pages**`,
     '',
-    '## Pages',
+    '## Table of Contents',
     '',
   ];
 
-  // Group by section using the index page structure
   const sections = indexMd.split(/^### /gm).slice(1);
+  const indexedPaths = new Set();
+
   for (const section of sections) {
     const sectionTitle = section.split('\n')[0].trim();
     const links = [...section.matchAll(/\[([^\]]+)\]\(\/documentation\/([^)\s]+)\)/g)];
-
     if (links.length === 0) continue;
 
     lines.push(`### ${sectionTitle}`);
     lines.push('');
 
-    for (const link of links) {
-      const [, text, urlPath] = link;
+    for (const [, text, urlPath] of links) {
       const localFile = urlPath.toLowerCase() + '.md';
       const exists = pages.some(p => p.docPath.toLowerCase() === urlPath.toLowerCase());
-      const icon = exists ? '📄' : '🔗';
-      lines.push(`- ${icon} [${text}](${localFile})`);
+      indexedPaths.add(urlPath.toLowerCase());
+      lines.push(`- ${exists ? '📄' : '🔗'} [${text}](${localFile})`);
     }
     lines.push('');
-  }
-
-  // Also list all pages not covered by the index
-  const indexedPaths = new Set();
-  for (const section of sections) {
-    const links = [...section.matchAll(/\]\(\/documentation\/([^)\s]+)\)/g)];
-    links.forEach(l => indexedPaths.add(l[1].toLowerCase()));
   }
 
   const unlisted = pages.filter(p => !indexedPaths.has(p.docPath.toLowerCase()));
@@ -203,9 +190,8 @@ function generateReadme(targetDir, target, pages) {
     lines.push('### Additional Pages');
     lines.push('');
     for (const p of unlisted) {
-      const localFile = p.docPath.toLowerCase() + '.md';
       const title = p.content?.match(/^# (.+)$/m)?.[1] || p.docPath;
-      lines.push(`- 📄 [${title}](${localFile})`);
+      lines.push(`- 📄 [${title}](${p.docPath.toLowerCase()}.md)`);
     }
     lines.push('');
   }
@@ -217,34 +203,38 @@ function generateReadme(targetDir, target, pages) {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
+  const start = Date.now();
+
   for (const target of TARGETS) {
-    console.log(`\n📚 Processing: ${target.title} (${target.path})`);
+    console.log(`\n📚 ${target.title} (concurrency: ${CONCURRENCY})`);
     console.log('═'.repeat(60));
 
     const targetDir = path.join(OUTPUT_DIR, target.name);
     fs.mkdirSync(targetDir, { recursive: true });
 
-    // Discover all pages
-    console.log('  Discovering pages...');
-    const pages = await discoverPages(target.path);
+    // Phase 1: Discover + Fetch concurrently
+    const t0 = Date.now();
+    console.log('  Crawling + fetching...');
+    const pages = await discoverAndFetch(target.path);
+    console.log(`  ⏱️  Fetched in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
-    // Save all pages
-    console.log(`\n  Saving ${pages.length} pages...`);
+    // Phase 2: Save (fast, sync I/O)
+    const t1 = Date.now();
+    console.log(`  Saving ${pages.length} pages...`);
     for (const page of pages) {
-      const filePath = savePage(targetDir, page.docPath, page.content, target.path);
-      console.log(`    ✅ ${path.relative(OUTPUT_DIR, filePath)}`);
+      savePage(targetDir, page.docPath, page.content);
     }
+    console.log(`  ⏱️  Saved in ${((Date.now() - t1) / 1000).toFixed(1)}s`);
 
-    // Generate README
+    // Phase 3: README
     generateReadme(targetDir, target, pages);
-    console.log(`    ✅ README.md`);
 
     // Stats
     const totalSize = pages.reduce((s, p) => s + p.content.length, 0);
-    console.log(`\n  📊 ${pages.length} pages | ${Math.round(totalSize / 1024)} KB`);
+    console.log(`  📊 ${pages.length} pages | ${Math.round(totalSize / 1024)} KB | ${((Date.now() - t0) / 1000).toFixed(1)}s total`);
   }
 
-  console.log('\n🎉 Done!');
+  console.log(`\n🎉 Done in ${((Date.now() - start) / 1000).toFixed(1)}s`);
 }
 
 main().catch(console.error);

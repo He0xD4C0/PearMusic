@@ -1,11 +1,11 @@
 # MusicKit Documentation
 
-> Official markdown from [developer.apple.com](https://developer.apple.com/documentation/MusicKit)
+> Official markdown — source: [developer.apple.com](https://developer.apple.com/documentation/MusicKit)
 > Fetched: 2026-06-03
 
 **60 pages**
 
-## Pages
+## Table of Contents
 
 ### Essentials
 
